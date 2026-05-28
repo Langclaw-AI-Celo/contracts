@@ -1,61 +1,75 @@
 # Langclaw Contracts
 
-Foundry project for Langclaw's Celo-first proof contracts, with Mantle deployments kept as optional legacy support.
+Foundry project for Langclaw's Celo-first proof and usage contracts. Mantle
+deployments remain documented as optional legacy support, but the current product
+submission is Celo mainnet.
 
-The hackathon-critical contracts are `LangclawRegistry`, `LangclawTradingJournal`, and `LangclawUsageVault`. The registry records AI agent decisions, evidence hashes, and signal categories on Celo. The trading journal records backtest and paper-trading outcomes. The usage vault supports Celo USDT credits for MiniPay-ready usage billing.
+## Contract Set
 
-## Deployed Mantle Contracts
+| Contract | Purpose |
+| --- | --- |
+| `LangclawRegistry` | Records AI agent decisions, evidence hashes, run IDs, signal types, recorder wallet, and timestamp |
+| `LangclawTradingJournal` | Records Strategy Lab backtests and paper-trade outcomes with deterministic decision/result hashes |
+| `LangclawUsageVault` | Holds Celo USDT usage-credit deposits and supports backend-authorized withdrawals |
 
-| Contract | Purpose | Mantle mainnet address |
-| --- | --- | --- |
-| `LangclawRegistry` | Agent decision proof and benchmarking trail | `0xe69755e4249c4978c39fbe847ca9674ce7af3505` |
-| `LangclawUsageVault` | Optional MNT billing vault | `0x7e93Ef361e7b54297cF963977bA829E47E59e8E1` |
-| `LangclawTradingJournal` | Strategy backtest and paper-trade proof trail | `0xe96e9b76af8c8f32bfa2235d647186826d92fb7d` |
+The contracts do not execute trades, custody strategy positions, or call model
+providers.
 
 ## Deployed Celo Contracts
 
-| Contract | Purpose | Celo mainnet address |
+| Contract | Celo mainnet address | Notes |
 | --- | --- | --- |
-| `LangclawRegistry` | Agent decision proof and benchmarking trail | `0xe69755e4249c4978c39fbe847ca9674ce7af3505` |
-| `LangclawUsageVault` | MiniPay / USDT usage billing vault | `0x837a2948586de4e7638c742f99e520ffc049bcf7` |
-| `LangclawTradingJournal` | Strategy backtest and paper-trade proof trail | `0x69984c20176704685236fd633192d7de1c13a5ec` |
+| `LangclawRegistry` | `0xe69755e4249c4978c39fbe847ca9674ce7af3505` | Agent decision proof |
+| `LangclawTradingJournal` | `0x69984c20176704685236fd633192d7de1c13a5ec` | Strategy backtest and paper-trade proof |
+| `LangclawUsageVault` | `0x837a2948586de4e7638c742f99e520ffc049bcf7` | MiniPay-ready Celo USDT usage vault |
+| Celo USDT | `0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e` | Vault deposit token |
 
-ERC-8004 identity:
+Agent identity:
 
-- Identity registry: `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432`
-- Mantle Langclaw agent ID: `94`
-- Celo Langclaw agent ID: `9109`
-- Celo agent registration tx: `0x1b7cb74378db42551a3cbc81dcd560f337df1593d4ef1cd70ee44ff269bdc7f3`
-- Celo Self Agent ID: `133`
-- Celo Self Agent ID tx: `0x3c7d0cc69f77d2aef5ab21bfe703d0f33f7037d5e2162209d78b23b5c3f1cde6`
+| Item | Value |
+| --- | --- |
+| ERC-8004 identity registry | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` |
+| Celo ERC-8004 agent ID | `9109` |
+| Celo agent registration tx | `0x1b7cb74378db42551a3cbc81dcd560f337df1593d4ef1cd70ee44ff269bdc7f3` |
+| Celo Self Agent ID | `133` |
+| Celo Self Agent ID tx | `0x3c7d0cc69f77d2aef5ab21bfe703d0f33f7037d5e2162209d78b23b5c3f1cde6` |
+| Agent owner / recorder | `0x2cA915EF6be8D2D48ccD3c5dAF715546AF873A4c` |
 
-Registry deployment transaction:
-`0xf6f8af14295c86d2f358c32ba15d0669903b122c086dcb0b432d9df8aaec6b6c`
+Current Celo proof examples:
 
-Current Celo USDT vault deployment transaction:
-`0xac09eb4b164b51818775cc7f73a33cbdf88428cdc3d853c5ae7ec34999c3e6b2`
-
-Archived native-only Celo vault creation transaction:
-`0xbb00e35a375fcafe33e30578bd246c60dddd3584c46bf9114d466206699773df`
-
-Explorer verification note:
-
-- `LangclawRegistry`, `LangclawTradingJournal`, and the live Celo `LangclawUsageVault` address are now verified on Celoscan.
-- The live Celo vault is now the USDT-backed deployment at `0x837a2948586de4e7638c742f99e520ffc049bcf7`.
-- The older native-only Celo vault at `0x6e1f381458229e8d1ee66d2a0121d4017596b97d` remains verified as an archived deployment.
-- Use `cd ../backend && npm run verify:celo-contracts` to submit or prepare the Celo verification artifacts with the deploy-matching compiler settings.
-
-Live Celo decision proof examples:
-
-| Decision | Agent | Signal type | Transaction |
+| Record | Agent | Signal / Status | Transaction |
 | --- | --- | --- | --- |
-| `1` | Self Agent ID `133` | `smart-money` | `0x2a2f94c40e2b5c080bd330f43f3ce6bc6b05e054b6626ce3ab2716220f0d3211` |
+| Registry decision `1` | Self Agent ID `133` | `smart-money` | `0x2a2f94c40e2b5c080bd330f43f3ce6bc6b05e054b6626ce3ab2716220f0d3211` |
 
-## LangclawRegistry
+## Deployed Mantle Contracts
 
-Source: [`src/LangclawRegistry.sol`](src/LangclawRegistry.sol)
+| Contract | Mantle mainnet address | Notes |
+| --- | --- | --- |
+| `LangclawRegistry` | `0xe69755e4249c4978c39fbe847ca9674ce7af3505` | Optional explicit Mantle analysis proof |
+| `LangclawUsageVault` | `0x7e93Ef361e7b54297cF963977bA829E47E59e8E1` | Optional MNT billing vault |
+| `LangclawTradingJournal` | `0xe96e9b76af8c8f32bfa2235d647186826d92fb7d` | Optional strategy journal |
 
-Tests: [`test/LangclawRegistry.t.sol`](test/LangclawRegistry.t.sol)
+## Explorer Verification
+
+- `LangclawRegistry`, `LangclawTradingJournal`, and the live Celo
+  `LangclawUsageVault` are verified on Celoscan.
+- The live Celo vault is the USDT-backed deployment at
+  `0x837a2948586de4e7638c742f99e520ffc049bcf7`.
+- The older native-only Celo vault at
+  `0x6e1f381458229e8d1ee66d2a0121d4017596b97d` remains archived and verified
+  for historical reference.
+- Use `cd ../backend && npm run verify:celo-contracts` to submit or prepare Celo
+  verification artifacts with deploy-matching compiler settings.
+
+## Source Files
+
+| Contract | Source | Tests |
+| --- | --- | --- |
+| `LangclawRegistry` | [`src/LangclawRegistry.sol`](src/LangclawRegistry.sol) | [`test/LangclawRegistry.t.sol`](test/LangclawRegistry.t.sol) |
+| `LangclawTradingJournal` | [`src/LangclawTradingJournal.sol`](src/LangclawTradingJournal.sol) | [`test/LangclawTradingJournal.t.sol`](test/LangclawTradingJournal.t.sol) |
+| `LangclawUsageVault` | [`src/LangclawUsageVault.sol`](src/LangclawUsageVault.sol) | [`test/LangclawUsageVault.t.sol`](test/LangclawUsageVault.t.sol) |
+
+## `LangclawRegistry`
 
 ```solidity
 function recordAgentDecision(
@@ -71,21 +85,17 @@ function getDecision(uint256 decisionId) external view returns (AgentDecision me
 
 Each record stores:
 
-- ERC-8004 `agentId`
-- Langclaw `runId`
-- deterministic `decisionHash`
-- evidence URI
-- signal type, such as `smart-money` or `liquidity-anomaly`
-- recorder wallet
-- block timestamp
+- ERC-8004 or Self-linked `agentId`.
+- Langclaw `runId`.
+- Deterministic `decisionHash`.
+- Evidence URI.
+- Signal type, such as `smart-money` or `liquidity-anomaly`.
+- Recorder wallet.
+- Block timestamp.
 
-This is the contract to highlight for Celo AI agent proof and decision history.
+This is the main contract to highlight for Celo AI agent decision proof.
 
-## LangclawTradingJournal
-
-Source: [`src/LangclawTradingJournal.sol`](src/LangclawTradingJournal.sol)
-
-Tests: [`test/LangclawTradingJournal.t.sol`](test/LangclawTradingJournal.t.sol)
+## `LangclawTradingJournal`
 
 ```solidity
 function recordStrategyRun(
@@ -106,43 +116,50 @@ function getRecord(uint256 recordId) external view returns (StrategyRecord memor
 
 Each record stores:
 
-- ERC-8004 `agentId`
-- Langclaw `runId`
-- `strategyId` such as `celo-liquidity-momentum-v1`
-- Celo market or pair address
-- deterministic decision and result hashes
-- evidence URI
-- action, PnL bps, and status (`backtested`, `paper-opened`, or `paper-closed`)
-- recorder wallet
-- block timestamp
+- Agent ID.
+- Langclaw `runId`.
+- Strategy ID, such as `celo-liquidity-momentum-v1`.
+- Market or pair address.
+- Deterministic decision and result hashes.
+- Evidence URI.
+- Action, PnL bps, and status such as `backtested`, `paper-opened`, or
+  `paper-closed`.
+- Recorder wallet.
+- Block timestamp.
 
 This contract supports Strategy Lab demos without live-funds risk.
 
-## LangclawUsageVault
+## `LangclawUsageVault`
 
-Source: [`src/LangclawUsageVault.sol`](src/LangclawUsageVault.sol)
+```solidity
+function deposit(bytes32 depositReference) external payable;
 
-Tests: [`test/LangclawUsageVault.t.sol`](test/LangclawUsageVault.t.sol)
+function depositTokenAmount(
+    bytes32 depositReference,
+    uint256 amount
+) external;
 
-`LangclawUsageVault` is an optional billing contract. It holds user MNT deposits on Mantle or USDT deposits on Celo, lets the backend authorize withdrawals, and lets users withdraw only authorized balances.
+function authorizeWithdrawal(
+    address payer,
+    uint256 amount,
+    bytes32 withdrawalId
+) external;
 
-Mantle mainnet deployment:
+function withdraw(uint256 amount) external;
 
-- Address: `0x7e93Ef361e7b54297cF963977bA829E47E59e8E1`
-- Owner: `0x2cA915EF6be8D2D48ccD3c5dAF715546AF873A4c`
-- Withdrawal authority: `0x2cA915EF6be8D2D48ccD3c5dAF715546AF873A4c`
+function vaultBalance() public view returns (uint256);
+```
 
-Celo mainnet deployment:
+For the Celo deployment:
 
 - Address: `0x837a2948586de4e7638c742f99e520ffc049bcf7`
 - Owner: `0x2cA915EF6be8D2D48ccD3c5dAF715546AF873A4c`
 - Withdrawal authority: `0x2cA915EF6be8D2D48ccD3c5dAF715546AF873A4c`
 - Deposit token: `0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e` (USDT)
 
-Do not mix the vault with the agent proof flow:
-
-- `LangclawRegistry` = AI decision proof
-- `LangclawUsageVault` = Celo USDT billing and top-up infrastructure
+The vault can also support native deposits when deployed with
+`depositToken = address(0)`, but the current Celo production vault is token-based
+USDT billing.
 
 ## Setup
 
@@ -153,6 +170,10 @@ forge test
 ```
 
 Requires Foundry: https://book.getfoundry.sh/getting-started/installation
+
+The local Foundry profile uses `solc 0.8.24`, optimizer `200`, and `via_ir =
+true`. The backend verifier rebuilds Celo verification bundles with deploy-
+matching `solc 0.8.35` settings.
 
 ## Deploy Registry
 
@@ -165,9 +186,10 @@ forge script script/DeployLangclawRegistry.s.sol:DeployLangclawRegistryScript \
   --broadcast
 ```
 
-After deployment, copy the deployed address to `CELO_LANGCLAW_REGISTRY_ADDRESS` in `backend/.env`.
+After deployment, copy the deployed address to
+`CELO_LANGCLAW_REGISTRY_ADDRESS` in `backend/.env`.
 
-## Deploy Optional Usage Vault
+## Deploy Usage Vault
 
 ```bash
 forge script script/DeployLangclawUsageVault.s.sol:DeployLangclawUsageVaultScript \
@@ -176,7 +198,9 @@ forge script script/DeployLangclawUsageVault.s.sol:DeployLangclawUsageVaultScrip
   --broadcast
 ```
 
-After deployment, copy the deployed address to `CELO_LANGCLAW_USAGE_VAULT_ADDRESS` in `backend/.env`.
+For a Celo USDT vault, deploy with the USDT token constructor path used by the
+backend deployment script, then copy the deployed address to
+`CELO_LANGCLAW_USAGE_VAULT_ADDRESS` in `backend/.env`.
 
 ## Deploy Trading Journal
 
@@ -187,4 +211,22 @@ forge script script/DeployLangclawTradingJournal.s.sol:DeployLangclawTradingJour
   --broadcast
 ```
 
-After deployment, copy the deployed address to `CELO_LANGCLAW_TRADING_JOURNAL_ADDRESS` in `backend/.env` and set `CELO_TRADING_JOURNAL_ENABLED=true`.
+After deployment, copy the deployed address to
+`CELO_LANGCLAW_TRADING_JOURNAL_ADDRESS` in `backend/.env` and set
+`CELO_TRADING_JOURNAL_ENABLED=true`.
+
+## Backend Deployment Helpers
+
+The backend repo wraps the deployment scripts with chain-aware env writing:
+
+```bash
+cd ../backend
+npm run deploy:registry -- --chain celo --write-env
+npm run deploy:usage-vault -- --chain celo --write-env
+npm run deploy:trading-journal -- --chain celo --write-env
+npm run register:agent -- --chain celo --write-env
+npm run verify:celo-contracts
+```
+
+Prefer these backend helpers when the goal is to keep `.env` values synchronized
+with the application runtime.
