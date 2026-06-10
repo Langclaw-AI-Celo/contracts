@@ -39,14 +39,14 @@ Current Celo proof examples:
 
 | Record | Agent | Signal / Status | Transaction |
 | --- | --- | --- | --- |
-| Registry decision `38` | ERC-8004 agent ID `9109` | `campaign-backend-proof` | `0x4485061e6e6151bc51c106f025b7d062468121595ca5cb4198f7307ea5ec5f06` |
+| Registry decision `47` | ERC-8004 agent ID `9109` | `campaign-backend-proof` | `0xb50e7bd12af0cbca9a6246a80f1976da753d359fbd1553458712b43aa40681b1` |
 | Registry decision `1` | Self Agent ID `133` | `smart-money` | `0x2a2f94c40e2b5c080bd330f43f3ce6bc6b05e054b6626ce3ab2716220f0d3211` |
 
 Latest ERC-8004 decision run:
 
-- `github-backend-650d33c-2026-06-06`
+- `github-backend-433b125-2026-06-08`
 - Evidence URI:
-  `https://github.com/Langclaw-AI-Celo/backend/commit/650d33c80a2a54c5a706c79722a6eeeaa5dd4fd8`
+  `https://github.com/Langclaw-AI-Celo/backend/commit/433b12562c6472dae9e3ff5a1286596a0420eaeb`
 
 ## Deployed Mantle Contracts
 
@@ -62,7 +62,7 @@ Latest ERC-8004 decision run:
   `LangclawUsageVault` are verified on Celoscan.
 - The latest proof references above were rechecked during the 2026-06-07
   backend eligibility and proof-readiness pass.
-- The latest registry write now remains the ERC-8004 decision `#38` for agent
+- The latest registry write now remains the ERC-8004 decision `#47` for agent
   `9109`, while the latest Self-linked proof example remains decision `#1` for
   agent `133`.
 - `cd ../backend && npm run check:celo-proof -- --json` now reports
