@@ -190,6 +190,18 @@ For the current live Celo vault:
 - Native `deposit(...)` is only for native-billing deployments and will revert
   with `UnsupportedNativeDeposit()` on the live USDT-backed vault.
 
+Campaign verification should prove the token-backed path, not only source
+verification:
+
+1. Confirm Celoscan shows `LangclawUsageVault` at
+   `0x837a2948586de4e7638c742f99e520ffc049bcf7`.
+2. Confirm the vault deposit token is Celo USDT
+   `0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e`.
+3. Confirm the frontend `/usage` flow approves USDT before submitting
+   `depositTokenAmount(...)`.
+4. Confirm the backend `POST /api/usage/deposit/verify` flow credits only after
+   matching a confirmed vault deposit event.
+
 ## Setup
 
 ```bash
