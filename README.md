@@ -60,8 +60,10 @@ Latest ERC-8004 decision run:
 
 - `LangclawRegistry`, `LangclawTradingJournal`, and the live Celo
   `LangclawUsageVault` are verified on Celoscan.
-- The latest proof references above were rechecked during the 2026-06-07
-  backend eligibility and proof-readiness pass.
+- The latest proof references above were rechecked during the 2026-06-11
+  backend eligibility and proof-readiness pass. If local audits report
+  `missing git origin remote` for the checkouts, verify that the workspace root
+  contains the remote origin.
 - The latest registry write now remains the ERC-8004 decision `#47` for agent
   `9109`, while the latest Self-linked proof example remains decision `#1` for
   agent `133`.
