@@ -59,6 +59,30 @@ contract LangclawRegistryTest is Test {
         assertEq(registry.getDecision(decisionId).createdAt, recordedAt);
     }
 
+    function testFuzz_RecordsNonEmptyDecisionPayloads(
+        uint256 agentId,
+        string memory runId,
+        bytes32 decisionHash,
+        string memory evidenceUri,
+        string memory signalType
+    ) public {
+        vm.assume(bytes(runId).length > 0);
+        vm.assume(decisionHash != bytes32(0));
+        vm.assume(bytes(evidenceUri).length > 0);
+        vm.assume(bytes(signalType).length > 0);
+
+        vm.prank(recorder);
+        uint256 decisionId = registry.recordAgentDecision(agentId, runId, decisionHash, evidenceUri, signalType);
+        LangclawRegistry.AgentDecision memory decision = registry.getDecision(decisionId);
+
+        assertEq(decision.agentId, agentId);
+        assertEq(decision.runId, runId);
+        assertEq(decision.decisionHash, decisionHash);
+        assertEq(decision.evidenceUri, evidenceUri);
+        assertEq(decision.signalType, signalType);
+        assertEq(decision.recorder, recorder);
+    }
+
     function test_RevertEmptyDecisionHash() public {
         vm.expectRevert(LangclawRegistry.EmptyDecisionHash.selector);
 
