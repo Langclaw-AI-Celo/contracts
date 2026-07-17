@@ -31,6 +31,11 @@ contract LangclawUsageVaultTest is Test {
         vm.deal(stranger, 100 ether);
     }
 
+    function test_RevertZeroConstructorAuthority() public {
+        vm.expectRevert(LangclawUsageVault.InvalidWithdrawalAuthority.selector);
+        new LangclawUsageVault(owner, address(0), address(0));
+    }
+
     function test_DepositEmitsReference() public {
         bytes32 depositReference = keccak256("top-up-request-1");
         uint256 amount = 1.5 ether;
