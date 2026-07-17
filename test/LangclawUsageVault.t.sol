@@ -246,6 +246,30 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
+    function test_MultiPayerPartialWithdrawalAccounting() public {
+        address secondPayer = makeAddr("second-payer");
+        _depositFrom(payer, 10 ether);
+
+        vm.startPrank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 4 ether, keccak256("payer-one-authorization"));
+        vault.authorizeWithdrawal(secondPayer, 3 ether, keccak256("payer-two-authorization"));
+        vm.stopPrank();
+
+        vm.prank(payer);
+        vault.withdraw(1.5 ether);
+
+        vm.prank(secondPayer);
+        vault.withdraw(1 ether);
+
+        assertEq(vault.authorizedWithdrawals(payer), 2.5 ether);
+        assertEq(vault.authorizedWithdrawals(secondPayer), 2 ether);
+        assertEq(vault.totalAuthorizedWithdrawals(), 4.5 ether);
+        assertEq(vault.totalWithdrawn(), 2.5 ether);
+        assertEq(vault.vaultBalance(), 7.5 ether);
+        assertEq(payer.balance, 1.5 ether);
+        assertEq(secondPayer.balance, 1 ether);
+    }
+
     function test_WithdrawalCannotExceedAllowance() public {
         _depositFrom(payer, 3 ether);
 
