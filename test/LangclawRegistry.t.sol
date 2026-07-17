@@ -135,4 +135,15 @@ contract LangclawRegistryTest is Test {
 
         registry.getDecision(1);
     }
+
+    function test_RevertAtMissingDecisionBoundary() public {
+        uint256 existingId = registry.recordAgentDecision(
+            8004, "run-existing", keccak256("existing"), "langclaw://evidence/existing", "proof"
+        );
+        uint256 missingId = registry.nextDecisionId();
+
+        assertEq(registry.getDecision(existingId).runId, "run-existing");
+        vm.expectRevert(abi.encodeWithSelector(LangclawRegistry.DecisionNotFound.selector, missingId));
+        registry.getDecision(missingId);
+    }
 }
