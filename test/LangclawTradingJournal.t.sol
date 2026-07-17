@@ -81,6 +81,27 @@ contract LangclawTradingJournalTest is Test {
         assertGt(record.createdAt, 0);
     }
 
+    function test_RecordsExactStrategyTimestamp() public {
+        uint256 recordedAt = 1_800_000_100;
+        vm.warp(recordedAt);
+
+        vm.prank(recorder);
+        uint256 recordId = journal.recordStrategyRun(
+            133,
+            "timestamped-run",
+            "celo-liquidity-momentum-v1",
+            "celo:pair",
+            keccak256("timestamped-decision"),
+            keccak256("timestamped-result"),
+            "langclaw://strategy/timestamped-run",
+            "hold",
+            0,
+            "backtested"
+        );
+
+        assertEq(journal.getRecord(recordId).createdAt, recordedAt);
+    }
+
     function test_RevertEmptyRunId() public {
         vm.expectRevert(LangclawTradingJournal.EmptyRunId.selector);
 
