@@ -102,6 +102,43 @@ contract LangclawTradingJournalTest is Test {
         assertEq(journal.getRecord(recordId).createdAt, recordedAt);
     }
 
+    function testFuzz_RecordsSignedPnlAndPayloads(
+        int256 pnlBps,
+        uint256 agentId,
+        string memory runId,
+        bytes32 decisionHash,
+        bytes32 resultHash,
+        string memory status
+    ) public {
+        vm.assume(bytes(runId).length > 0);
+        vm.assume(decisionHash != bytes32(0));
+        vm.assume(resultHash != bytes32(0));
+        vm.assume(bytes(status).length > 0);
+
+        vm.prank(recorder);
+        uint256 recordId = journal.recordStrategyRun(
+            agentId,
+            runId,
+            "fuzz-strategy",
+            "celo:fuzz-market",
+            decisionHash,
+            resultHash,
+            "langclaw://strategy/fuzz",
+            "hold",
+            pnlBps,
+            status
+        );
+        LangclawTradingJournal.StrategyRecord memory record = journal.getRecord(recordId);
+
+        assertEq(record.agentId, agentId);
+        assertEq(record.runId, runId);
+        assertEq(record.decisionHash, decisionHash);
+        assertEq(record.resultHash, resultHash);
+        assertEq(record.pnlBps, pnlBps);
+        assertEq(record.status, status);
+        assertEq(record.recorder, recorder);
+    }
+
     function test_RevertEmptyRunId() public {
         vm.expectRevert(LangclawTradingJournal.EmptyRunId.selector);
 
