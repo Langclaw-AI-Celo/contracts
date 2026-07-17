@@ -139,6 +139,47 @@ contract LangclawTradingJournalTest is Test {
         assertEq(record.recorder, recorder);
     }
 
+    function test_IsolatesConsecutiveRecorderData() public {
+        address secondRecorder = makeAddr("second-recorder");
+
+        vm.prank(recorder);
+        uint256 firstId = journal.recordStrategyRun(
+            133,
+            "run-first",
+            "strategy-first",
+            "celo:first",
+            keccak256("decision-first"),
+            keccak256("result-first"),
+            "langclaw://strategy/first",
+            "buy",
+            -25,
+            "paper-opened"
+        );
+
+        vm.prank(secondRecorder);
+        uint256 secondId = journal.recordStrategyRun(
+            8004,
+            "run-second",
+            "strategy-second",
+            "celo:second",
+            keccak256("decision-second"),
+            keccak256("result-second"),
+            "langclaw://strategy/second",
+            "sell",
+            75,
+            "paper-closed"
+        );
+
+        LangclawTradingJournal.StrategyRecord memory first = journal.getRecord(firstId);
+        LangclawTradingJournal.StrategyRecord memory second = journal.getRecord(secondId);
+
+        assertEq(first.strategyId, "strategy-first");
+        assertEq(first.recorder, recorder);
+        assertEq(second.strategyId, "strategy-second");
+        assertEq(second.recorder, secondRecorder);
+        assertEq(journal.nextRecordId(), 2);
+    }
+
     function test_RevertEmptyRunId() public {
         vm.expectRevert(LangclawTradingJournal.EmptyRunId.selector);
 
