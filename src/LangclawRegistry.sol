@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {LangclawProofValidation} from "./LangclawProofValidation.sol";
+
 contract LangclawRegistry {
+    using LangclawProofValidation for bytes32;
+    using LangclawProofValidation for string;
+
     struct AgentDecision {
         uint256 agentId;
         string runId;
@@ -39,19 +44,19 @@ contract LangclawRegistry {
         string calldata evidenceUri,
         string calldata signalType
     ) external returns (uint256 decisionId) {
-        if (bytes(runId).length == 0) {
+        if (runId.isEmpty()) {
             revert EmptyRunId();
         }
 
-        if (decisionHash == bytes32(0)) {
+        if (decisionHash.isEmpty()) {
             revert EmptyDecisionHash();
         }
 
-        if (bytes(evidenceUri).length == 0) {
+        if (evidenceUri.isEmpty()) {
             revert EmptyEvidenceUri();
         }
 
-        if (bytes(signalType).length == 0) {
+        if (signalType.isEmpty()) {
             revert EmptySignalType();
         }
 
@@ -68,15 +73,7 @@ contract LangclawRegistry {
 
         nextDecisionId = decisionId + 1;
 
-        emit AgentDecisionRecorded(
-            decisionId,
-            agentId,
-            msg.sender,
-            decisionHash,
-            runId,
-            evidenceUri,
-            signalType
-        );
+        emit AgentDecisionRecorded(decisionId, agentId, msg.sender, decisionHash, runId, evidenceUri, signalType);
     }
 
     function getDecision(uint256 decisionId) external view returns (AgentDecision memory) {
