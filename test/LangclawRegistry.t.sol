@@ -27,24 +27,11 @@ contract LangclawRegistryTest is Test {
         bytes32 decisionHash = keccak256("celo-alpha-run");
 
         vm.expectEmit(true, true, true, true, address(registry));
-        emit AgentDecisionRecorded(
-            0,
-            8004,
-            recorder,
-            decisionHash,
-            "run-1",
-            "langclaw://evidence/run-1",
-            "smart-money"
-        );
+        emit AgentDecisionRecorded(0, 8004, recorder, decisionHash, "run-1", "langclaw://evidence/run-1", "smart-money");
 
         vm.prank(recorder);
-        uint256 decisionId = registry.recordAgentDecision(
-            8004,
-            "run-1",
-            decisionHash,
-            "langclaw://evidence/run-1",
-            "smart-money"
-        );
+        uint256 decisionId =
+            registry.recordAgentDecision(8004, "run-1", decisionHash, "langclaw://evidence/run-1", "smart-money");
 
         assertEq(decisionId, 0);
         assertEq(registry.nextDecisionId(), 1);
@@ -63,55 +50,29 @@ contract LangclawRegistryTest is Test {
     function test_RevertEmptyDecisionHash() public {
         vm.expectRevert(LangclawRegistry.EmptyDecisionHash.selector);
 
-        registry.recordAgentDecision(
-            8004,
-            "run-1",
-            bytes32(0),
-            "langclaw://evidence/run-1",
-            "smart-money"
-        );
+        registry.recordAgentDecision(8004, "run-1", bytes32(0), "langclaw://evidence/run-1", "smart-money");
     }
 
     function test_RevertEmptyRunId() public {
         vm.expectRevert(LangclawRegistry.EmptyRunId.selector);
 
-        registry.recordAgentDecision(
-            8004,
-            "",
-            keccak256("celo-alpha-run"),
-            "langclaw://evidence/run-1",
-            "smart-money"
-        );
+        registry.recordAgentDecision(8004, "", keccak256("celo-alpha-run"), "langclaw://evidence/run-1", "smart-money");
     }
 
     function test_RevertEmptyEvidenceUri() public {
         vm.expectRevert(LangclawRegistry.EmptyEvidenceUri.selector);
 
-        registry.recordAgentDecision(
-            8004,
-            "run-1",
-            keccak256("celo-alpha-run"),
-            "",
-            "smart-money"
-        );
+        registry.recordAgentDecision(8004, "run-1", keccak256("celo-alpha-run"), "", "smart-money");
     }
 
     function test_RevertEmptySignalType() public {
         vm.expectRevert(LangclawRegistry.EmptySignalType.selector);
 
-        registry.recordAgentDecision(
-            8004,
-            "run-1",
-            keccak256("celo-alpha-run"),
-            "langclaw://evidence/run-1",
-            ""
-        );
+        registry.recordAgentDecision(8004, "run-1", keccak256("celo-alpha-run"), "langclaw://evidence/run-1", "");
     }
 
     function test_RevertMissingDecision() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(LangclawRegistry.DecisionNotFound.selector, 1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(LangclawRegistry.DecisionNotFound.selector, 1));
 
         registry.getDecision(1);
     }

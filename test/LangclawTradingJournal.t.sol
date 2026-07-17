@@ -278,9 +278,7 @@ contract LangclawTradingJournalTest is Test {
     }
 
     function test_RevertMissingRecord() public {
-        vm.expectRevert(
-            abi.encodeWithSelector(LangclawTradingJournal.RecordNotFound.selector, 1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(LangclawTradingJournal.RecordNotFound.selector, 1));
 
         journal.getRecord(1);
     }

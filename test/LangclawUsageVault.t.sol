@@ -473,7 +473,9 @@ contract LangclawUsageVaultTokenTest is Test {
         vm.stopPrank();
 
         vm.expectRevert(
-            abi.encodeWithSelector(LangclawUsageVault.InsufficientVaultBalance.selector, depositAmount + 1, depositAmount)
+            abi.encodeWithSelector(
+                LangclawUsageVault.InsufficientVaultBalance.selector, depositAmount + 1, depositAmount
+            )
         );
 
         vm.prank(withdrawalAuthority);

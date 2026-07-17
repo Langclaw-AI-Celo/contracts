@@ -44,7 +44,9 @@ contract LangclawUsageVault is Ownable2Step, Pausable, ReentrancyGuard {
         _;
     }
 
-    constructor(address initialOwner, address initialWithdrawalAuthority, address initialDepositToken) Ownable(initialOwner) {
+    constructor(address initialOwner, address initialWithdrawalAuthority, address initialDepositToken)
+        Ownable(initialOwner)
+    {
         if (initialWithdrawalAuthority == address(0)) {
             revert InvalidWithdrawalAuthority();
         }
