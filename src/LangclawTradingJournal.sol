@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {LangclawProofValidation} from "./LangclawProofValidation.sol";
+
 contract LangclawTradingJournal {
+    using LangclawProofValidation for bytes32;
+    using LangclawProofValidation for string;
+
     struct StrategyRecord {
         uint256 agentId;
         string runId;
@@ -58,28 +63,28 @@ contract LangclawTradingJournal {
         int256 pnlBps,
         string calldata status
     ) external returns (uint256 recordId) {
-        if (bytes(runId).length == 0) {
+        if (runId.isEmpty()) {
             revert EmptyRunId();
         }
-        if (bytes(strategyId).length == 0) {
+        if (strategyId.isEmpty()) {
             revert EmptyStrategyId();
         }
-        if (bytes(market).length == 0) {
+        if (market.isEmpty()) {
             revert EmptyMarket();
         }
-        if (decisionHash == bytes32(0)) {
+        if (decisionHash.isEmpty()) {
             revert EmptyDecisionHash();
         }
-        if (resultHash == bytes32(0)) {
+        if (resultHash.isEmpty()) {
             revert EmptyResultHash();
         }
-        if (bytes(evidenceUri).length == 0) {
+        if (evidenceUri.isEmpty()) {
             revert EmptyEvidenceUri();
         }
-        if (bytes(action).length == 0) {
+        if (action.isEmpty()) {
             revert EmptyAction();
         }
-        if (bytes(status).length == 0) {
+        if (status.isEmpty()) {
             revert EmptyStatus();
         }
 
