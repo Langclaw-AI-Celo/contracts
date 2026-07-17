@@ -47,6 +47,18 @@ contract LangclawRegistryTest is Test {
         assertGt(decision.createdAt, 0);
     }
 
+    function test_RecordsExactDecisionTimestamp() public {
+        uint256 recordedAt = 1_800_000_000;
+        vm.warp(recordedAt);
+
+        vm.prank(recorder);
+        uint256 decisionId = registry.recordAgentDecision(
+            8004, "run-timestamp", keccak256("timestamped-decision"), "langclaw://evidence/timestamp", "proof"
+        );
+
+        assertEq(registry.getDecision(decisionId).createdAt, recordedAt);
+    }
+
     function test_RevertEmptyDecisionHash() public {
         vm.expectRevert(LangclawRegistry.EmptyDecisionHash.selector);
 
