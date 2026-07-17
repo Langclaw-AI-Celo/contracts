@@ -36,6 +36,21 @@ contract LangclawUsageVaultTest is Test {
         new LangclawUsageVault(owner, address(0), address(0));
     }
 
+    function test_NativeAndTokenConstructorState() public {
+        MockUSDT token = new MockUSDT();
+        LangclawUsageVault tokenVault = new LangclawUsageVault(owner, withdrawalAuthority, address(token));
+
+        assertEq(vault.owner(), owner);
+        assertEq(vault.withdrawalAuthority(), withdrawalAuthority);
+        assertEq(vault.depositToken(), address(0));
+        assertEq(vault.vaultBalance(), 0);
+
+        assertEq(tokenVault.owner(), owner);
+        assertEq(tokenVault.withdrawalAuthority(), withdrawalAuthority);
+        assertEq(tokenVault.depositToken(), address(token));
+        assertEq(tokenVault.vaultBalance(), 0);
+    }
+
     function test_DepositEmitsReference() public {
         bytes32 depositReference = keccak256("top-up-request-1");
         uint256 amount = 1.5 ether;
