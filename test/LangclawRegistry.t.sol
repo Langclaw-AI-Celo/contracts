@@ -83,6 +83,29 @@ contract LangclawRegistryTest is Test {
         assertEq(decision.recorder, recorder);
     }
 
+    function test_IsolatesConsecutiveRecorderData() public {
+        address secondRecorder = makeAddr("second-recorder");
+
+        vm.prank(recorder);
+        uint256 firstId = registry.recordAgentDecision(
+            8004, "run-first", keccak256("first-decision"), "langclaw://evidence/first", "smart-money"
+        );
+
+        vm.prank(secondRecorder);
+        uint256 secondId = registry.recordAgentDecision(
+            133, "run-second", keccak256("second-decision"), "langclaw://evidence/second", "liquidity"
+        );
+
+        LangclawRegistry.AgentDecision memory first = registry.getDecision(firstId);
+        LangclawRegistry.AgentDecision memory second = registry.getDecision(secondId);
+
+        assertEq(first.runId, "run-first");
+        assertEq(first.recorder, recorder);
+        assertEq(second.runId, "run-second");
+        assertEq(second.recorder, secondRecorder);
+        assertEq(registry.nextDecisionId(), 2);
+    }
+
     function test_RevertEmptyDecisionHash() public {
         vm.expectRevert(LangclawRegistry.EmptyDecisionHash.selector);
 
