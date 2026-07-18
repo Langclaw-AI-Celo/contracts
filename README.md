@@ -192,6 +192,18 @@ For the current live Celo vault:
 - Native `deposit(...)` is only for native-billing deployments and will revert
   with `UnsupportedNativeDeposit()` on the live USDT-backed vault.
 
+### ERC-8021 Calldata Compatibility
+
+Langclaw Celo clients may append an ERC-8021 Schema 0 attribution suffix after
+the normal ABI payload for registry, journal, deposit, and withdrawal calls.
+The contract entry points accept the trailing calldata without changing stored
+values. Tests cover registry decisions, strategy proofs, native deposits, token
+deposits, and token withdrawals.
+
+The suffix does not change a function selector, ABI, bytecode, contract
+address, or deployed contract. Mantle calls remain untagged. This compatibility
+update does not require a contract deployment.
+
 Campaign verification should prove the token-backed path, not only source
 verification:
 

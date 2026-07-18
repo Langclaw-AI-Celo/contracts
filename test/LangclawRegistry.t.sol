@@ -47,6 +47,28 @@ contract LangclawRegistryTest is Test {
         assertGt(decision.createdAt, 0);
     }
 
+    function test_RecordAgentDecisionAcceptsErc8021TaggedCalldata() public {
+        bytes32 decisionHash = keccak256("tagged-celo-decision");
+        bytes memory payload = abi.encodeCall(
+            registry.recordAgentDecision,
+            (9109, "tagged-run", decisionHash, "langclaw://evidence/tagged-run", "attribution")
+        );
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.prank(recorder);
+        (bool success, bytes memory result) = address(registry).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(abi.decode(result, (uint256)), 0);
+        assertEq(registry.nextDecisionId(), 1);
+
+        LangclawRegistry.AgentDecision memory decision = registry.getDecision(0);
+        assertEq(decision.agentId, 9109);
+        assertEq(decision.runId, "tagged-run");
+        assertEq(decision.decisionHash, decisionHash);
+        assertEq(decision.recorder, recorder);
+    }
+
     function test_RecordsExactDecisionTimestamp() public {
         uint256 recordedAt = 1_800_000_000;
         vm.warp(recordedAt);

@@ -81,6 +81,41 @@ contract LangclawTradingJournalTest is Test {
         assertGt(record.createdAt, 0);
     }
 
+    function test_RecordStrategyRunAcceptsErc8021TaggedCalldata() public {
+        bytes32 decisionHash = keccak256("tagged-strategy-decision");
+        bytes32 resultHash = keccak256("tagged-strategy-result");
+        bytes memory payload = abi.encodeCall(
+            journal.recordStrategyRun,
+            (
+                9109,
+                "tagged-strategy-run",
+                "celo-attribution-v1",
+                "celo:usdt",
+                decisionHash,
+                resultHash,
+                "langclaw://strategy/tagged-run",
+                "hold",
+                25,
+                "backtested"
+            )
+        );
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.prank(recorder);
+        (bool success, bytes memory result) = address(journal).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(abi.decode(result, (uint256)), 0);
+        assertEq(journal.nextRecordId(), 1);
+
+        LangclawTradingJournal.StrategyRecord memory record = journal.getRecord(0);
+        assertEq(record.agentId, 9109);
+        assertEq(record.runId, "tagged-strategy-run");
+        assertEq(record.decisionHash, decisionHash);
+        assertEq(record.resultHash, resultHash);
+        assertEq(record.recorder, recorder);
+    }
+
     function test_RecordsExactStrategyTimestamp() public {
         uint256 recordedAt = 1_800_000_100;
         vm.warp(recordedAt);

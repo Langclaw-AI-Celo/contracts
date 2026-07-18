@@ -65,6 +65,23 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.vaultBalance(), amount);
     }
 
+    function test_NativeDepositAcceptsErc8021TaggedCalldata() public {
+        bytes32 depositReference = keccak256("tagged-native-deposit");
+        uint256 amount = 1 ether;
+        bytes memory payload = abi.encodeCall(vault.deposit, (depositReference));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, false, true, true, address(vault));
+        emit Deposit(payer, amount, depositReference);
+
+        vm.prank(payer);
+        (bool success,) = address(vault).call{value: amount}(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(address(vault).balance, amount);
+        assertEq(vault.vaultBalance(), amount);
+    }
+
     function test_ReceiveEmitsEmptyReference() public {
         uint256 amount = 2 ether;
 
@@ -499,6 +516,26 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.vaultBalance(), amount);
     }
 
+    function test_TokenDepositAcceptsErc8021TaggedCalldata() public {
+        bytes32 depositReference = keccak256("tagged-usdt-deposit");
+        uint256 amount = 25e6;
+        bytes memory payload = abi.encodeCall(vault.depositTokenAmount, (depositReference, amount));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.prank(payer);
+        usdt.approve(address(vault), amount);
+
+        vm.expectEmit(true, false, true, true, address(vault));
+        emit Deposit(payer, amount, depositReference);
+
+        vm.prank(payer);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(usdt.balanceOf(address(vault)), amount);
+        assertEq(vault.vaultBalance(), amount);
+    }
+
     function test_TokenDepositRejectsZeroAmount() public {
         vm.expectRevert(LangclawUsageVault.ZeroAmount.selector);
 
@@ -547,6 +584,35 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(usdt.balanceOf(address(vault)), depositAmount - withdrawalAmount);
         assertEq(vault.authorizedWithdrawals(payer), 0);
         assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+    }
+
+    function test_TokenWithdrawalAcceptsErc8021TaggedCalldata() public {
+        uint256 depositAmount = 100e6;
+        uint256 withdrawalAmount = 40e6;
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("tagged-withdrawal-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("tagged-withdrawal"));
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+        bytes memory payload = abi.encodeCall(vault.withdraw, (withdrawalAmount));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, false, false, true, address(vault));
+        emit Withdrawal(payer, withdrawalAmount);
+
+        vm.prank(payer);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + withdrawalAmount);
+        assertEq(usdt.balanceOf(address(vault)), depositAmount - withdrawalAmount);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
