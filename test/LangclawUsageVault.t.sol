@@ -587,6 +587,35 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
+    function test_TokenWithdrawalAcceptsErc8021TaggedCalldata() public {
+        uint256 depositAmount = 100e6;
+        uint256 withdrawalAmount = 40e6;
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("tagged-withdrawal-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("tagged-withdrawal"));
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+        bytes memory payload = abi.encodeCall(vault.withdraw, (withdrawalAmount));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, false, false, true, address(vault));
+        emit Withdrawal(payer, withdrawalAmount);
+
+        vm.prank(payer);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + withdrawalAmount);
+        assertEq(usdt.balanceOf(address(vault)), depositAmount - withdrawalAmount);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+    }
+
     function test_TokenAuthorizationCannotExceedTokenBalance() public {
         uint256 depositAmount = 10e6;
 
