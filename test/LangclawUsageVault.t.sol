@@ -516,6 +516,26 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.vaultBalance(), amount);
     }
 
+    function test_TokenDepositAcceptsErc8021TaggedCalldata() public {
+        bytes32 depositReference = keccak256("tagged-usdt-deposit");
+        uint256 amount = 25e6;
+        bytes memory payload = abi.encodeCall(vault.depositTokenAmount, (depositReference, amount));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.prank(payer);
+        usdt.approve(address(vault), amount);
+
+        vm.expectEmit(true, false, true, true, address(vault));
+        emit Deposit(payer, amount, depositReference);
+
+        vm.prank(payer);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(usdt.balanceOf(address(vault)), amount);
+        assertEq(vault.vaultBalance(), amount);
+    }
+
     function test_TokenDepositRejectsZeroAmount() public {
         vm.expectRevert(LangclawUsageVault.ZeroAmount.selector);
 
