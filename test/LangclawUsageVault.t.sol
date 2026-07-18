@@ -65,6 +65,23 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.vaultBalance(), amount);
     }
 
+    function test_NativeDepositAcceptsErc8021TaggedCalldata() public {
+        bytes32 depositReference = keccak256("tagged-native-deposit");
+        uint256 amount = 1 ether;
+        bytes memory payload = abi.encodeCall(vault.deposit, (depositReference));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, false, true, true, address(vault));
+        emit Deposit(payer, amount, depositReference);
+
+        vm.prank(payer);
+        (bool success,) = address(vault).call{value: amount}(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(address(vault).balance, amount);
+        assertEq(vault.vaultBalance(), amount);
+    }
+
     function test_ReceiveEmitsEmptyReference() public {
         uint256 amount = 2 ether;
 
