@@ -719,6 +719,7 @@ contract LangclawUsageVaultTokenTest is Test {
 
     function test_TokenAuthorizationCannotExceedTokenBalance() public {
         uint256 depositAmount = 10e6;
+        bytes32 withdrawalId = keccak256("too-large");
 
         vm.startPrank(payer);
         usdt.approve(address(vault), depositAmount);
@@ -732,7 +733,23 @@ contract LangclawUsageVaultTokenTest is Test {
         );
 
         vm.prank(withdrawalAuthority);
-        vault.authorizeWithdrawal(stranger, depositAmount + 1, keccak256("too-large"));
+        vault.authorizeWithdrawal(stranger, depositAmount + 1, withdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(stranger), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), 1);
+        vault.depositTokenAmount(keccak256("deposit-retry"), 1);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(stranger, depositAmount + 1, withdrawalId);
+
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(stranger), depositAmount + 1);
+        assertEq(vault.totalAuthorizedWithdrawals(), depositAmount + 1);
     }
 
     function test_TokenVaultRejectsPlainNativeTransfer() public {
