@@ -5,6 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Test} from "forge-std/Test.sol";
 import {LangclawUsageVault} from "../src/LangclawUsageVault.sol";
 
@@ -657,6 +658,32 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
+    function test_FailedTokenTransferPreservesWithdrawalState() public {
+        FailingTransferToken token = new FailingTransferToken();
+        LangclawUsageVault failingVault = new LangclawUsageVault(owner, withdrawalAuthority, address(token));
+        uint256 amount = 25e6;
+
+        token.mint(payer, amount);
+        vm.startPrank(payer);
+        token.approve(address(failingVault), amount);
+        failingVault.depositTokenAmount(keccak256("failing-token-deposit"), amount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        failingVault.authorizeWithdrawal(payer, amount, keccak256("failing-token-withdrawal"));
+        token.setTransferFailure(true);
+
+        vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(token)));
+        vm.prank(payer);
+        failingVault.withdraw(amount);
+
+        assertEq(token.balanceOf(payer), 0);
+        assertEq(token.balanceOf(address(failingVault)), amount);
+        assertEq(failingVault.authorizedWithdrawals(payer), amount);
+        assertEq(failingVault.totalAuthorizedWithdrawals(), amount);
+        assertEq(failingVault.totalWithdrawn(), 0);
+    }
+
     function testFuzz_TokenPartialWithdrawalAccounting(
         uint96 rawDepositAmount,
         uint96 rawAuthorizationAmount,
@@ -809,6 +836,28 @@ contract MockUSDT is ERC20 {
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
+    }
+}
+
+contract FailingTransferToken is ERC20 {
+    bool internal transferFails;
+
+    constructor() ERC20("Failing Token", "FAIL") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function setTransferFailure(bool shouldFail) external {
+        transferFails = shouldFail;
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        if (transferFails) {
+            return false;
+        }
+
+        return super.transfer(to, amount);
     }
 }
 
