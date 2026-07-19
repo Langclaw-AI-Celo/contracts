@@ -262,6 +262,23 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(vault.paused());
     }
 
+    function test_PendingOwnerCannotUnpauseVaultBeforeAcceptance() public {
+        address pendingOwner = makeAddr("pending-recovery-owner");
+
+        vm.startPrank(owner);
+        vault.pause();
+        vault.transferOwnership(pendingOwner);
+        vm.stopPrank();
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, pendingOwner));
+        vm.prank(pendingOwner);
+        vault.unpause();
+
+        assertTrue(vault.paused());
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), pendingOwner);
+    }
+
     function test_OwnerCanCancelPendingOwnershipTransfer() public {
         address canceledOwner = makeAddr("canceled-owner");
 
