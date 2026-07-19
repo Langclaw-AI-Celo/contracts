@@ -421,6 +421,12 @@ contract LangclawUsageVaultTest is Test {
         );
 
         receiver.withdrawFromVault(amount);
+
+        assertEq(address(receiver).balance, 0);
+        assertEq(address(vault).balance, amount);
+        assertEq(vault.authorizedWithdrawals(address(receiver)), amount);
+        assertEq(vault.totalAuthorizedWithdrawals(), amount);
+        assertEq(vault.totalWithdrawn(), 0);
     }
 
     function testFuzz_Deposit(bytes32 depositReference, uint96 rawAmount) public {
