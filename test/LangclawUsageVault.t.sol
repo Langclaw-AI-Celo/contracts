@@ -815,6 +815,16 @@ contract LangclawUsageVaultTest is Test {
         vault.renounceOwnership();
     }
 
+    function test_NonOwnerCannotReachDisabledRenouncePath() public {
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+
+        vm.prank(stranger);
+        vault.renounceOwnership();
+
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), address(0));
+    }
+
     function test_ReentrancyIsBlockedDuringWithdrawal() public {
         ReentrantWithdrawalReceiver receiver = new ReentrantWithdrawalReceiver(vault);
         uint256 amount = 1 ether;
