@@ -414,6 +414,16 @@ contract LangclawUsageVaultTest is Test {
 
         vm.prank(owner);
         vault.setWithdrawalAuthority(address(0));
+
+        assertEq(vault.withdrawalAuthority(), withdrawalAuthority);
+
+        _depositFrom(payer, 1 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, keccak256("authorization-after-rejected-rotation"));
+
+        assertEq(vault.authorizedWithdrawals(payer), 1 ether);
+        assertEq(vault.totalAuthorizedWithdrawals(), 1 ether);
     }
 
     function test_RenounceOwnershipIsDisabled() public {
