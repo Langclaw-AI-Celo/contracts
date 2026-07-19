@@ -340,6 +340,25 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
+    function test_RepeatedAuthorizationsAccumulateForSamePayer() public {
+        _depositFrom(payer, 5 ether);
+
+        vm.startPrank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, keccak256("same-payer-first"));
+        vault.authorizeWithdrawal(payer, 2 ether, keccak256("same-payer-second"));
+        vm.stopPrank();
+
+        assertEq(vault.authorizedWithdrawals(payer), 3 ether);
+        assertEq(vault.totalAuthorizedWithdrawals(), 3 ether);
+
+        vm.prank(payer);
+        vault.withdraw(3 ether);
+
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), 3 ether);
+    }
+
     function test_MultiPayerPartialWithdrawalAccounting() public {
         address secondPayer = makeAddr("second-payer");
         _depositFrom(payer, 10 ether);
