@@ -224,6 +224,24 @@ contract LangclawUsageVaultTest is Test {
         vault.authorizeWithdrawal(payer, 1 ether, withdrawalId);
     }
 
+    function test_AuthorizeWithdrawalRejectsReplayIdAcrossPayers() public {
+        address secondPayer = makeAddr("replay-second-payer");
+        bytes32 withdrawalId = keccak256("global-withdrawal-id");
+
+        _depositFrom(payer, 2 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, withdrawalId);
+
+        vm.expectRevert(abi.encodeWithSelector(LangclawUsageVault.WithdrawalIdAlreadyUsed.selector, withdrawalId));
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(secondPayer, 1 ether, withdrawalId);
+
+        assertEq(vault.authorizedWithdrawals(secondPayer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 1 ether);
+    }
+
     function test_AuthorizeWithdrawalCannotExceedVaultBalance() public {
         _depositFrom(payer, 1 ether);
 
