@@ -328,6 +328,17 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.withdrawalAuthority(), newAuthority);
     }
 
+    function test_OnlyOwnerCanRotateWithdrawalAuthority() public {
+        address newAuthority = makeAddr("unauthorized-new-authority");
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+
+        vm.prank(stranger);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        assertEq(vault.withdrawalAuthority(), withdrawalAuthority);
+    }
+
     function test_RotatedAuthorityControlsWithdrawalAccess() public {
         address newAuthority = makeAddr("rotated-authority");
         _depositFrom(payer, 2 ether);
