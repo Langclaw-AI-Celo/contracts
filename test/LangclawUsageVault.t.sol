@@ -681,6 +681,21 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.withdrawalAuthority(), newAuthority);
     }
 
+    function test_WithdrawalAuthorityRotationAcceptsErc8021TaggedCalldata() public {
+        address newAuthority = makeAddr("tagged-new-authority");
+        bytes memory payload = abi.encodeCall(vault.setWithdrawalAuthority, (newAuthority));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, true, false, true, address(vault));
+        emit WithdrawalAuthorityUpdated(withdrawalAuthority, newAuthority);
+
+        vm.prank(owner);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+    }
+
     function test_OwnerCanRotateWithdrawalAuthorityWhilePaused() public {
         address newAuthority = makeAddr("paused-rotation-authority");
         bytes32 withdrawalId = keccak256("paused-rotation-authorization");
