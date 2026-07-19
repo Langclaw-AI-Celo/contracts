@@ -435,6 +435,33 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
+    function test_NativeWithdrawalAcceptsErc8021TaggedCalldata() public {
+        uint256 depositAmount = 3 ether;
+        uint256 withdrawalAmount = 1 ether;
+
+        _depositFrom(payer, depositAmount);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("tagged-native-withdrawal"));
+
+        uint256 payerBalanceBefore = payer.balance;
+        bytes memory payload = abi.encodeCall(vault.withdraw, (withdrawalAmount));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, false, false, true, address(vault));
+        emit Withdrawal(payer, withdrawalAmount);
+
+        vm.prank(payer);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(payer.balance, payerBalanceBefore + withdrawalAmount);
+        assertEq(address(vault).balance, depositAmount - withdrawalAmount);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+    }
+
     function test_RepeatedAuthorizationsAccumulateForSamePayer() public {
         _depositFrom(payer, 5 ether);
 
