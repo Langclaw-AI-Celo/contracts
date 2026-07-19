@@ -143,6 +143,27 @@ contract LangclawUsageVaultTest is Test {
         assertEq(address(vault).balance, 1 ether);
     }
 
+    function test_PauseBlocksDirectNativeTransfersWithoutMovingFunds() public {
+        vm.prank(owner);
+        vault.pause();
+
+        uint256 payerBalanceBefore = payer.balance;
+        uint256 vaultBalanceBefore = address(vault).balance;
+
+        vm.prank(payer);
+        (bool success, bytes memory reason) = address(vault).call{value: 1 ether}("");
+
+        bytes4 selector;
+        assembly {
+            selector := mload(add(reason, 0x20))
+        }
+
+        assertFalse(success);
+        assertEq(selector, Pausable.EnforcedPause.selector);
+        assertEq(payer.balance, payerBalanceBefore);
+        assertEq(address(vault).balance, vaultBalanceBefore);
+    }
+
     function test_OnlyOwnerCanPause() public {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
 
@@ -172,6 +193,30 @@ contract LangclawUsageVaultTest is Test {
         vm.prank(newOwner);
         vault.pause();
         assertTrue(vault.paused());
+    }
+
+    function test_AcceptedOwnerControlsRecoveryFromPausedState() public {
+        address newOwner = makeAddr("paused-new-owner");
+
+        vm.startPrank(owner);
+        vault.pause();
+        vault.transferOwnership(newOwner);
+        vm.stopPrank();
+
+        vm.prank(newOwner);
+        vault.acceptOwnership();
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, owner));
+        vm.prank(owner);
+        vault.unpause();
+
+        assertTrue(vault.paused());
+
+        vm.prank(newOwner);
+        vault.unpause();
+
+        assertFalse(vault.paused());
+        assertEq(vault.owner(), newOwner);
     }
 
     function test_AcceptedOwnerControlsWithdrawalAuthorityRotation() public {
@@ -335,6 +380,33 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), 1 ether + 1 wei);
     }
 
+    function test_ExistingAuthorizationsReserveCapacityAcrossPayers() public {
+        address secondPayer = makeAddr("capacity-second-payer");
+        bytes32 secondWithdrawalId = keccak256("capacity-second-withdrawal");
+
+        _depositFrom(payer, 5 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 4 ether, keccak256("capacity-first-withdrawal"));
+
+        vm.expectRevert(abi.encodeWithSelector(LangclawUsageVault.InsufficientVaultBalance.selector, 6 ether, 5 ether));
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(secondPayer, 2 ether, secondWithdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(secondWithdrawalId));
+        assertEq(vault.authorizedWithdrawals(secondPayer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 4 ether);
+
+        _depositFrom(stranger, 1 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(secondPayer, 2 ether, secondWithdrawalId);
+
+        assertTrue(vault.usedWithdrawalIds(secondWithdrawalId));
+        assertEq(vault.authorizedWithdrawals(secondPayer), 2 ether);
+        assertEq(vault.totalAuthorizedWithdrawals(), 6 ether);
+    }
+
     function test_AuthorizedWithdrawalTransfersAndReducesAllowance() public {
         uint256 depositAmount = 5 ether;
         uint256 withdrawalAmount = 2 ether;
@@ -473,6 +545,37 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), 1 ether);
         assertEq(vault.totalWithdrawn(), 0);
         assertTrue(vault.usedWithdrawalIds(withdrawalId));
+    }
+
+    function test_PauseAllowsAuthorizationForWithdrawalAfterRecovery() public {
+        bytes32 withdrawalId = keccak256("authorization-during-pause");
+
+        _depositFrom(payer, 2 ether);
+
+        vm.prank(owner);
+        vault.pause();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, withdrawalId);
+
+        assertEq(vault.authorizedWithdrawals(payer), 1 ether);
+        assertEq(vault.totalAuthorizedWithdrawals(), 1 ether);
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        vm.prank(payer);
+        vault.withdraw(1 ether);
+
+        vm.prank(owner);
+        vault.unpause();
+
+        vm.prank(payer);
+        vault.withdraw(1 ether);
+
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), 1 ether);
+        assertEq(payer.balance, 1 ether);
     }
 
     function test_OwnerCanRotateWithdrawalAuthority() public {
