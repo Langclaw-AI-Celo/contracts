@@ -493,6 +493,27 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), 1 ether);
     }
 
+    function test_AuthorizationRemainsWithdrawableAfterAuthorityRotation() public {
+        address newAuthority = makeAddr("allowance-rotation-authority");
+
+        _depositFrom(payer, 2 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, keccak256("allowance-before-rotation"));
+
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        vm.prank(payer);
+        vault.withdraw(1 ether);
+
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), 1 ether);
+        assertEq(payer.balance, 1 ether);
+    }
+
     function test_RevertInvalidWithdrawalAuthorityRotation() public {
         vm.expectRevert(LangclawUsageVault.InvalidWithdrawalAuthority.selector);
 
