@@ -143,6 +143,52 @@ contract LangclawUsageVaultTest is Test {
         assertEq(address(vault).balance, 1 ether);
     }
 
+    function test_PauseAndUnpauseAcceptErc8021TaggedCalldata() public {
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(false, false, false, true, address(vault));
+        emit Paused(owner);
+        vm.expectEmit(true, false, false, true, address(vault));
+        emit VaultPaused(owner);
+
+        vm.prank(owner);
+        (bool pauseSuccess,) = address(vault).call(bytes.concat(abi.encodeCall(vault.pause, ()), suffix));
+
+        assertTrue(pauseSuccess);
+        assertTrue(vault.paused());
+
+        vm.expectEmit(false, false, false, true, address(vault));
+        emit Unpaused(owner);
+        vm.expectEmit(true, false, false, true, address(vault));
+        emit VaultUnpaused(owner);
+
+        vm.prank(owner);
+        (bool unpauseSuccess,) = address(vault).call(bytes.concat(abi.encodeCall(vault.unpause, ()), suffix));
+
+        assertTrue(unpauseSuccess);
+        assertFalse(vault.paused());
+    }
+
+    function test_RepeatedPauseTransitionsRevertWithoutChangingState() public {
+        vm.prank(owner);
+        vault.pause();
+
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        vm.prank(owner);
+        vault.pause();
+
+        assertTrue(vault.paused());
+
+        vm.prank(owner);
+        vault.unpause();
+
+        vm.expectRevert(Pausable.ExpectedPause.selector);
+        vm.prank(owner);
+        vault.unpause();
+
+        assertFalse(vault.paused());
+    }
+
     function test_PauseBlocksDirectNativeTransfersWithoutMovingFunds() public {
         vm.prank(owner);
         vault.pause();
@@ -655,6 +701,21 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.withdrawalAuthority(), newAuthority);
     }
 
+    function test_WithdrawalAuthorityRotationAcceptsErc8021TaggedCalldata() public {
+        address newAuthority = makeAddr("tagged-new-authority");
+        bytes memory payload = abi.encodeCall(vault.setWithdrawalAuthority, (newAuthority));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, true, false, true, address(vault));
+        emit WithdrawalAuthorityUpdated(withdrawalAuthority, newAuthority);
+
+        vm.prank(owner);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+    }
+
     function test_OwnerCanRotateWithdrawalAuthorityWhilePaused() public {
         address newAuthority = makeAddr("paused-rotation-authority");
         bytes32 withdrawalId = keccak256("paused-rotation-authorization");
@@ -752,6 +813,16 @@ contract LangclawUsageVaultTest is Test {
 
         vm.prank(owner);
         vault.renounceOwnership();
+    }
+
+    function test_NonOwnerCannotReachDisabledRenouncePath() public {
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+
+        vm.prank(stranger);
+        vault.renounceOwnership();
+
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), address(0));
     }
 
     function test_ReentrancyIsBlockedDuringWithdrawal() public {
