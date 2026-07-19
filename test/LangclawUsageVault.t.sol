@@ -169,6 +169,26 @@ contract LangclawUsageVaultTest is Test {
         assertFalse(vault.paused());
     }
 
+    function test_RepeatedPauseTransitionsRevertWithoutChangingState() public {
+        vm.prank(owner);
+        vault.pause();
+
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        vm.prank(owner);
+        vault.pause();
+
+        assertTrue(vault.paused());
+
+        vm.prank(owner);
+        vault.unpause();
+
+        vm.expectRevert(Pausable.ExpectedPause.selector);
+        vm.prank(owner);
+        vault.unpause();
+
+        assertFalse(vault.paused());
+    }
+
     function test_PauseBlocksDirectNativeTransfersWithoutMovingFunds() public {
         vm.prank(owner);
         vault.pause();
