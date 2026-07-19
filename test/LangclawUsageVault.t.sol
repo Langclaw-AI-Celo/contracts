@@ -745,6 +745,14 @@ contract LangclawUsageVaultHandler is Test {
         vault.withdraw(amount);
     }
 
+    function payerAt(uint256 index) external view returns (address) {
+        return payers[index];
+    }
+
+    function payerCount() external view returns (uint256) {
+        return payers.length;
+    }
+
     function _payer(uint256 payerSeed) private view returns (address) {
         return payers[payerSeed % payers.length];
     }
@@ -766,6 +774,16 @@ contract LangclawUsageVaultInvariantTest is Test {
 
     function invariant_TotalAuthorizedWithdrawalsStaySolvent() public view {
         assertLe(vault.totalAuthorizedWithdrawals(), address(vault).balance);
+    }
+
+    function invariant_TotalAuthorizationEqualsPayerAllowances() public view {
+        uint256 allowanceTotal;
+
+        for (uint256 index; index < handler.payerCount(); ++index) {
+            allowanceTotal += vault.authorizedWithdrawals(handler.payerAt(index));
+        }
+
+        assertEq(vault.totalAuthorizedWithdrawals(), allowanceTotal);
     }
 
     function invariant_TotalWithdrawnNeverExceedsBackendAuthorization() public view {
