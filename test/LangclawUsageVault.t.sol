@@ -326,12 +326,21 @@ contract LangclawUsageVaultTest is Test {
         vm.prank(withdrawalAuthority);
         vault.authorizeWithdrawal(payer, 1 ether, keccak256("withdrawal-partial"));
 
+        uint256 payerBalanceBefore = payer.balance;
+        uint256 vaultBalanceBefore = address(vault).balance;
+
         vm.expectRevert(
             abi.encodeWithSelector(LangclawUsageVault.UnauthorizedWithdrawal.selector, payer, 1 ether + 1 wei, 1 ether)
         );
 
         vm.prank(payer);
         vault.withdraw(1 ether + 1 wei);
+
+        assertEq(payer.balance, payerBalanceBefore);
+        assertEq(address(vault).balance, vaultBalanceBefore);
+        assertEq(vault.authorizedWithdrawals(payer), 1 ether);
+        assertEq(vault.totalAuthorizedWithdrawals(), 1 ether);
+        assertEq(vault.totalWithdrawn(), 0);
     }
 
     function test_PausedWithdrawalPreservesAuthorizationState() public {
