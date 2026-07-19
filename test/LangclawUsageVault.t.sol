@@ -587,6 +587,37 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
+    function testFuzz_TokenPartialWithdrawalAccounting(
+        uint96 rawDepositAmount,
+        uint96 rawAuthorizationAmount,
+        uint96 rawWithdrawalAmount
+    ) public {
+        uint256 depositAmount = bound(uint256(rawDepositAmount), 1, 1_000e6);
+        uint256 authorizationAmount = bound(uint256(rawAuthorizationAmount), 1, depositAmount);
+        uint256 withdrawalAmount = bound(uint256(rawWithdrawalAmount), 1, authorizationAmount);
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("fuzz-token-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(
+            payer, authorizationAmount, keccak256(abi.encode("fuzz-token-withdrawal", authorizationAmount))
+        );
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + withdrawalAmount);
+        assertEq(usdt.balanceOf(address(vault)), depositAmount - withdrawalAmount);
+        assertEq(vault.authorizedWithdrawals(payer), authorizationAmount - withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), authorizationAmount - withdrawalAmount);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+    }
+
     function test_TokenWithdrawalAcceptsErc8021TaggedCalldata() public {
         uint256 depositAmount = 100e6;
         uint256 withdrawalAmount = 40e6;
