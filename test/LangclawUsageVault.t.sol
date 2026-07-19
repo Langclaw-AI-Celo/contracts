@@ -587,6 +587,25 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.vaultBalance(), amount);
     }
 
+    function test_FailedTokenDepositPreservesPayerFundsAndAllowance() public {
+        FailingTransferFromToken token = new FailingTransferFromToken();
+        LangclawUsageVault failingVault = new LangclawUsageVault(owner, withdrawalAuthority, address(token));
+        uint256 amount = 25e6;
+
+        token.mint(payer, amount);
+        vm.prank(payer);
+        token.approve(address(failingVault), amount);
+
+        vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(token)));
+        vm.prank(payer);
+        failingVault.depositTokenAmount(keccak256("failed-token-deposit"), amount);
+
+        assertEq(token.balanceOf(payer), amount);
+        assertEq(token.balanceOf(address(failingVault)), 0);
+        assertEq(token.allowance(payer, address(failingVault)), amount);
+        assertEq(failingVault.vaultBalance(), 0);
+    }
+
     function test_TokenDepositAcceptsErc8021TaggedCalldata() public {
         bytes32 depositReference = keccak256("tagged-usdt-deposit");
         uint256 amount = 25e6;
@@ -858,6 +877,18 @@ contract FailingTransferToken is ERC20 {
         }
 
         return super.transfer(to, amount);
+    }
+}
+
+contract FailingTransferFromToken is ERC20 {
+    constructor() ERC20("Failing TransferFrom Token", "FAIL_FROM") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function transferFrom(address, address, uint256) public pure override returns (bool) {
+        return false;
     }
 }
 
