@@ -224,6 +224,24 @@ contract LangclawUsageVaultTest is Test {
         vault.authorizeWithdrawal(payer, 1 ether, withdrawalId);
     }
 
+    function test_AuthorizeWithdrawalRejectsReplayIdAcrossPayers() public {
+        address secondPayer = makeAddr("replay-second-payer");
+        bytes32 withdrawalId = keccak256("global-withdrawal-id");
+
+        _depositFrom(payer, 2 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, withdrawalId);
+
+        vm.expectRevert(abi.encodeWithSelector(LangclawUsageVault.WithdrawalIdAlreadyUsed.selector, withdrawalId));
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(secondPayer, 1 ether, withdrawalId);
+
+        assertEq(vault.authorizedWithdrawals(secondPayer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 1 ether);
+    }
+
     function test_AuthorizeWithdrawalCannotExceedVaultBalance() public {
         _depositFrom(payer, 1 ether);
 
@@ -328,6 +346,17 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.withdrawalAuthority(), newAuthority);
     }
 
+    function test_OnlyOwnerCanRotateWithdrawalAuthority() public {
+        address newAuthority = makeAddr("unauthorized-new-authority");
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
+
+        vm.prank(stranger);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        assertEq(vault.withdrawalAuthority(), withdrawalAuthority);
+    }
+
     function test_RotatedAuthorityControlsWithdrawalAccess() public {
         address newAuthority = makeAddr("rotated-authority");
         _depositFrom(payer, 2 ether);
@@ -392,6 +421,12 @@ contract LangclawUsageVaultTest is Test {
         );
 
         receiver.withdrawFromVault(amount);
+
+        assertEq(address(receiver).balance, 0);
+        assertEq(address(vault).balance, amount);
+        assertEq(vault.authorizedWithdrawals(address(receiver)), amount);
+        assertEq(vault.totalAuthorizedWithdrawals(), amount);
+        assertEq(vault.totalWithdrawn(), 0);
     }
 
     function testFuzz_Deposit(bytes32 depositReference, uint96 rawAmount) public {
@@ -587,6 +622,37 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
+    function testFuzz_TokenPartialWithdrawalAccounting(
+        uint96 rawDepositAmount,
+        uint96 rawAuthorizationAmount,
+        uint96 rawWithdrawalAmount
+    ) public {
+        uint256 depositAmount = bound(uint256(rawDepositAmount), 1, 1_000e6);
+        uint256 authorizationAmount = bound(uint256(rawAuthorizationAmount), 1, depositAmount);
+        uint256 withdrawalAmount = bound(uint256(rawWithdrawalAmount), 1, authorizationAmount);
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("fuzz-token-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(
+            payer, authorizationAmount, keccak256(abi.encode("fuzz-token-withdrawal", authorizationAmount))
+        );
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + withdrawalAmount);
+        assertEq(usdt.balanceOf(address(vault)), depositAmount - withdrawalAmount);
+        assertEq(vault.authorizedWithdrawals(payer), authorizationAmount - withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), authorizationAmount - withdrawalAmount);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+    }
+
     function test_TokenWithdrawalAcceptsErc8021TaggedCalldata() public {
         uint256 depositAmount = 100e6;
         uint256 withdrawalAmount = 40e6;
@@ -745,6 +811,14 @@ contract LangclawUsageVaultHandler is Test {
         vault.withdraw(amount);
     }
 
+    function payerAt(uint256 index) external view returns (address) {
+        return payers[index];
+    }
+
+    function payerCount() external view returns (uint256) {
+        return payers.length;
+    }
+
     function _payer(uint256 payerSeed) private view returns (address) {
         return payers[payerSeed % payers.length];
     }
@@ -766,6 +840,16 @@ contract LangclawUsageVaultInvariantTest is Test {
 
     function invariant_TotalAuthorizedWithdrawalsStaySolvent() public view {
         assertLe(vault.totalAuthorizedWithdrawals(), address(vault).balance);
+    }
+
+    function invariant_TotalAuthorizationEqualsPayerAllowances() public view {
+        uint256 allowanceTotal;
+
+        for (uint256 index; index < handler.payerCount(); ++index) {
+            allowanceTotal += vault.authorizedWithdrawals(handler.payerAt(index));
+        }
+
+        assertEq(vault.totalAuthorizedWithdrawals(), allowanceTotal);
     }
 
     function invariant_TotalWithdrawnNeverExceedsBackendAuthorization() public view {
