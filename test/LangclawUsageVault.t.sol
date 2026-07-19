@@ -753,6 +753,7 @@ contract LangclawUsageVaultTokenTest is Test {
     function test_PausedTokenVaultBlocksDepositAndWithdraw() public {
         uint256 depositAmount = 20e6;
         uint256 withdrawalAmount = 5e6;
+        bytes32 withdrawalId = keccak256("token-paused-withdrawal");
 
         vm.startPrank(payer);
         usdt.approve(address(vault), depositAmount);
@@ -760,7 +761,7 @@ contract LangclawUsageVaultTokenTest is Test {
         vm.stopPrank();
 
         vm.prank(withdrawalAuthority);
-        vault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("token-paused-withdrawal"));
+        vault.authorizeWithdrawal(payer, withdrawalAmount, withdrawalId);
 
         vm.prank(owner);
         vault.pause();
@@ -772,6 +773,13 @@ contract LangclawUsageVaultTokenTest is Test {
         vm.expectRevert(Pausable.EnforcedPause.selector);
         vault.withdraw(withdrawalAmount);
         vm.stopPrank();
+
+        assertEq(usdt.balanceOf(payer), 1_000e6 - depositAmount);
+        assertEq(usdt.balanceOf(address(vault)), depositAmount);
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+        assertEq(vault.totalWithdrawn(), 0);
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
     }
 }
 
