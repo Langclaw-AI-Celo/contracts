@@ -195,6 +195,30 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(vault.paused());
     }
 
+    function test_AcceptedOwnerControlsRecoveryFromPausedState() public {
+        address newOwner = makeAddr("paused-new-owner");
+
+        vm.startPrank(owner);
+        vault.pause();
+        vault.transferOwnership(newOwner);
+        vm.stopPrank();
+
+        vm.prank(newOwner);
+        vault.acceptOwnership();
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, owner));
+        vm.prank(owner);
+        vault.unpause();
+
+        assertTrue(vault.paused());
+
+        vm.prank(newOwner);
+        vault.unpause();
+
+        assertFalse(vault.paused());
+        assertEq(vault.owner(), newOwner);
+    }
+
     function test_AcceptedOwnerControlsWithdrawalAuthorityRotation() public {
         address newOwner = makeAddr("authority-new-owner");
         address newAuthority = makeAddr("authority-from-new-owner");
