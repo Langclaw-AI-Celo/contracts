@@ -143,6 +143,32 @@ contract LangclawUsageVaultTest is Test {
         assertEq(address(vault).balance, 1 ether);
     }
 
+    function test_PauseAndUnpauseAcceptErc8021TaggedCalldata() public {
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(false, false, false, true, address(vault));
+        emit Paused(owner);
+        vm.expectEmit(true, false, false, true, address(vault));
+        emit VaultPaused(owner);
+
+        vm.prank(owner);
+        (bool pauseSuccess,) = address(vault).call(bytes.concat(abi.encodeCall(vault.pause, ()), suffix));
+
+        assertTrue(pauseSuccess);
+        assertTrue(vault.paused());
+
+        vm.expectEmit(false, false, false, true, address(vault));
+        emit Unpaused(owner);
+        vm.expectEmit(true, false, false, true, address(vault));
+        emit VaultUnpaused(owner);
+
+        vm.prank(owner);
+        (bool unpauseSuccess,) = address(vault).call(bytes.concat(abi.encodeCall(vault.unpause, ()), suffix));
+
+        assertTrue(unpauseSuccess);
+        assertFalse(vault.paused());
+    }
+
     function test_PauseBlocksDirectNativeTransfersWithoutMovingFunds() public {
         vm.prank(owner);
         vault.pause();
