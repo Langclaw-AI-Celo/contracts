@@ -174,6 +174,29 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(vault.paused());
     }
 
+    function test_AcceptedOwnerControlsWithdrawalAuthorityRotation() public {
+        address newOwner = makeAddr("authority-new-owner");
+        address newAuthority = makeAddr("authority-from-new-owner");
+
+        vm.prank(owner);
+        vault.transferOwnership(newOwner);
+
+        vm.prank(newOwner);
+        vault.acceptOwnership();
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, owner));
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        assertEq(vault.withdrawalAuthority(), withdrawalAuthority);
+
+        vm.prank(newOwner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        assertEq(vault.owner(), newOwner);
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+    }
+
     function test_PendingOwnerCannotManageVaultBeforeAcceptance() public {
         address pendingOwner = makeAddr("pending-owner");
 
