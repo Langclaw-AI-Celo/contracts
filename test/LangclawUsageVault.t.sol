@@ -5,6 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Test} from "forge-std/Test.sol";
 import {LangclawUsageVault} from "../src/LangclawUsageVault.sol";
 
@@ -326,12 +327,21 @@ contract LangclawUsageVaultTest is Test {
         vm.prank(withdrawalAuthority);
         vault.authorizeWithdrawal(payer, 1 ether, keccak256("withdrawal-partial"));
 
+        uint256 payerBalanceBefore = payer.balance;
+        uint256 vaultBalanceBefore = address(vault).balance;
+
         vm.expectRevert(
             abi.encodeWithSelector(LangclawUsageVault.UnauthorizedWithdrawal.selector, payer, 1 ether + 1 wei, 1 ether)
         );
 
         vm.prank(payer);
         vault.withdraw(1 ether + 1 wei);
+
+        assertEq(payer.balance, payerBalanceBefore);
+        assertEq(address(vault).balance, vaultBalanceBefore);
+        assertEq(vault.authorizedWithdrawals(payer), 1 ether);
+        assertEq(vault.totalAuthorizedWithdrawals(), 1 ether);
+        assertEq(vault.totalWithdrawn(), 0);
     }
 
     function test_PausedWithdrawalPreservesAuthorizationState() public {
@@ -427,7 +437,9 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(receiver.reentryBlocked());
         assertEq(receiver.lastRevertSelector(), ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
         assertEq(address(receiver).balance, amount);
+        assertEq(address(vault).balance, 0);
         assertEq(vault.authorizedWithdrawals(address(receiver)), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
         assertEq(vault.totalWithdrawn(), amount);
     }
 
@@ -646,6 +658,32 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
+    function test_FailedTokenTransferPreservesWithdrawalState() public {
+        FailingTransferToken token = new FailingTransferToken();
+        LangclawUsageVault failingVault = new LangclawUsageVault(owner, withdrawalAuthority, address(token));
+        uint256 amount = 25e6;
+
+        token.mint(payer, amount);
+        vm.startPrank(payer);
+        token.approve(address(failingVault), amount);
+        failingVault.depositTokenAmount(keccak256("failing-token-deposit"), amount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        failingVault.authorizeWithdrawal(payer, amount, keccak256("failing-token-withdrawal"));
+        token.setTransferFailure(true);
+
+        vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(token)));
+        vm.prank(payer);
+        failingVault.withdraw(amount);
+
+        assertEq(token.balanceOf(payer), 0);
+        assertEq(token.balanceOf(address(failingVault)), amount);
+        assertEq(failingVault.authorizedWithdrawals(payer), amount);
+        assertEq(failingVault.totalAuthorizedWithdrawals(), amount);
+        assertEq(failingVault.totalWithdrawn(), 0);
+    }
+
     function testFuzz_TokenPartialWithdrawalAccounting(
         uint96 rawDepositAmount,
         uint96 rawAuthorizationAmount,
@@ -708,6 +746,7 @@ contract LangclawUsageVaultTokenTest is Test {
 
     function test_TokenAuthorizationCannotExceedTokenBalance() public {
         uint256 depositAmount = 10e6;
+        bytes32 withdrawalId = keccak256("too-large");
 
         vm.startPrank(payer);
         usdt.approve(address(vault), depositAmount);
@@ -721,7 +760,23 @@ contract LangclawUsageVaultTokenTest is Test {
         );
 
         vm.prank(withdrawalAuthority);
-        vault.authorizeWithdrawal(stranger, depositAmount + 1, keccak256("too-large"));
+        vault.authorizeWithdrawal(stranger, depositAmount + 1, withdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(stranger), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), 1);
+        vault.depositTokenAmount(keccak256("deposit-retry"), 1);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(stranger, depositAmount + 1, withdrawalId);
+
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(stranger), depositAmount + 1);
+        assertEq(vault.totalAuthorizedWithdrawals(), depositAmount + 1);
     }
 
     function test_TokenVaultRejectsPlainNativeTransfer() public {
@@ -742,6 +797,7 @@ contract LangclawUsageVaultTokenTest is Test {
     function test_PausedTokenVaultBlocksDepositAndWithdraw() public {
         uint256 depositAmount = 20e6;
         uint256 withdrawalAmount = 5e6;
+        bytes32 withdrawalId = keccak256("token-paused-withdrawal");
 
         vm.startPrank(payer);
         usdt.approve(address(vault), depositAmount);
@@ -749,7 +805,7 @@ contract LangclawUsageVaultTokenTest is Test {
         vm.stopPrank();
 
         vm.prank(withdrawalAuthority);
-        vault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("token-paused-withdrawal"));
+        vault.authorizeWithdrawal(payer, withdrawalAmount, withdrawalId);
 
         vm.prank(owner);
         vault.pause();
@@ -761,6 +817,13 @@ contract LangclawUsageVaultTokenTest is Test {
         vm.expectRevert(Pausable.EnforcedPause.selector);
         vault.withdraw(withdrawalAmount);
         vm.stopPrank();
+
+        assertEq(usdt.balanceOf(payer), 1_000e6 - depositAmount);
+        assertEq(usdt.balanceOf(address(vault)), depositAmount);
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+        assertEq(vault.totalWithdrawn(), 0);
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
     }
 }
 
@@ -773,6 +836,28 @@ contract MockUSDT is ERC20 {
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
+    }
+}
+
+contract FailingTransferToken is ERC20 {
+    bool internal transferFails;
+
+    constructor() ERC20("Failing Token", "FAIL") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function setTransferFailure(bool shouldFail) external {
+        transferFails = shouldFail;
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        if (transferFails) {
+            return false;
+        }
+
+        return super.transfer(to, amount);
     }
 }
 
