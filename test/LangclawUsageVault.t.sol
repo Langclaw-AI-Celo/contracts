@@ -322,6 +322,27 @@ contract LangclawUsageVaultTest is Test {
         vault.authorizeWithdrawal(payer, 0, keccak256("withdrawal-zero"));
     }
 
+    function test_AuthorizeWithdrawalAcceptsErc8021TaggedCalldata() public {
+        uint256 amount = 1 ether;
+        bytes32 withdrawalId = keccak256("tagged-authorization");
+
+        _depositFrom(payer, amount);
+
+        bytes memory payload = abi.encodeCall(vault.authorizeWithdrawal, (payer, amount, withdrawalId));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, false, true, true, address(vault));
+        emit WithdrawalAuthorized(payer, amount, withdrawalId);
+
+        vm.prank(withdrawalAuthority);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), amount);
+        assertEq(vault.totalAuthorizedWithdrawals(), amount);
+    }
+
     function test_AuthorizeWithdrawalRejectsReplayId() public {
         bytes32 withdrawalId = keccak256("withdrawal-id");
 
