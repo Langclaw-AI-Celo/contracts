@@ -356,6 +356,33 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), 1 ether + 1 wei);
     }
 
+    function test_ExistingAuthorizationsReserveCapacityAcrossPayers() public {
+        address secondPayer = makeAddr("capacity-second-payer");
+        bytes32 secondWithdrawalId = keccak256("capacity-second-withdrawal");
+
+        _depositFrom(payer, 5 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 4 ether, keccak256("capacity-first-withdrawal"));
+
+        vm.expectRevert(abi.encodeWithSelector(LangclawUsageVault.InsufficientVaultBalance.selector, 6 ether, 5 ether));
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(secondPayer, 2 ether, secondWithdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(secondWithdrawalId));
+        assertEq(vault.authorizedWithdrawals(secondPayer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 4 ether);
+
+        _depositFrom(stranger, 1 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(secondPayer, 2 ether, secondWithdrawalId);
+
+        assertTrue(vault.usedWithdrawalIds(secondWithdrawalId));
+        assertEq(vault.authorizedWithdrawals(secondPayer), 2 ether);
+        assertEq(vault.totalAuthorizedWithdrawals(), 6 ether);
+    }
+
     function test_AuthorizedWithdrawalTransfersAndReducesAllowance() public {
         uint256 depositAmount = 5 ether;
         uint256 withdrawalAmount = 2 ether;
