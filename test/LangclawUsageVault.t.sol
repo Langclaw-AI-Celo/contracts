@@ -174,6 +174,29 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(vault.paused());
     }
 
+    function test_AcceptedOwnerControlsWithdrawalAuthorityRotation() public {
+        address newOwner = makeAddr("authority-new-owner");
+        address newAuthority = makeAddr("authority-from-new-owner");
+
+        vm.prank(owner);
+        vault.transferOwnership(newOwner);
+
+        vm.prank(newOwner);
+        vault.acceptOwnership();
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, owner));
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        assertEq(vault.withdrawalAuthority(), withdrawalAuthority);
+
+        vm.prank(newOwner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        assertEq(vault.owner(), newOwner);
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+    }
+
     function test_PendingOwnerCannotManageVaultBeforeAcceptance() public {
         address pendingOwner = makeAddr("pending-owner");
 
@@ -340,6 +363,47 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 
+    function test_RepeatedAuthorizationsAccumulateForSamePayer() public {
+        _depositFrom(payer, 5 ether);
+
+        vm.startPrank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, keccak256("same-payer-first"));
+        vault.authorizeWithdrawal(payer, 2 ether, keccak256("same-payer-second"));
+        vm.stopPrank();
+
+        assertEq(vault.authorizedWithdrawals(payer), 3 ether);
+        assertEq(vault.totalAuthorizedWithdrawals(), 3 ether);
+
+        vm.prank(payer);
+        vault.withdraw(3 ether);
+
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), 3 ether);
+    }
+
+    function test_ConsumedWithdrawalIdRemainsUsedAfterFullWithdrawal() public {
+        bytes32 withdrawalId = keccak256("consumed-after-withdrawal");
+
+        _depositFrom(payer, 2 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, withdrawalId);
+
+        vm.prank(payer);
+        vault.withdraw(1 ether);
+
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+
+        vm.expectRevert(abi.encodeWithSelector(LangclawUsageVault.WithdrawalIdAlreadyUsed.selector, withdrawalId));
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, withdrawalId);
+
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+    }
+
     function test_MultiPayerPartialWithdrawalAccounting() public {
         address secondPayer = makeAddr("second-payer");
         _depositFrom(payer, 10 ether);
@@ -450,6 +514,27 @@ contract LangclawUsageVaultTest is Test {
 
         assertEq(vault.authorizedWithdrawals(payer), 1 ether);
         assertEq(vault.totalAuthorizedWithdrawals(), 1 ether);
+    }
+
+    function test_AuthorizationRemainsWithdrawableAfterAuthorityRotation() public {
+        address newAuthority = makeAddr("allowance-rotation-authority");
+
+        _depositFrom(payer, 2 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, keccak256("allowance-before-rotation"));
+
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        vm.prank(payer);
+        vault.withdraw(1 ether);
+
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), 1 ether);
+        assertEq(payer.balance, 1 ether);
     }
 
     function test_RevertInvalidWithdrawalAuthorityRotation() public {
