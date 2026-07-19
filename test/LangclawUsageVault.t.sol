@@ -194,6 +194,29 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(vault.paused());
     }
 
+    function test_OwnerCanCancelPendingOwnershipTransfer() public {
+        address canceledOwner = makeAddr("canceled-owner");
+
+        vm.startPrank(owner);
+        vault.transferOwnership(canceledOwner);
+        vault.transferOwnership(address(0));
+        vm.stopPrank();
+
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), address(0));
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, canceledOwner));
+        vm.prank(canceledOwner);
+        vault.acceptOwnership();
+
+        assertEq(vault.owner(), owner);
+
+        vm.prank(owner);
+        vault.pause();
+
+        assertTrue(vault.paused());
+    }
+
     function test_RevertZeroWithdrawal() public {
         vm.expectRevert(LangclawUsageVault.ZeroAmount.selector);
 
