@@ -436,7 +436,9 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(receiver.reentryBlocked());
         assertEq(receiver.lastRevertSelector(), ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
         assertEq(address(receiver).balance, amount);
+        assertEq(address(vault).balance, 0);
         assertEq(vault.authorizedWithdrawals(address(receiver)), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
         assertEq(vault.totalWithdrawn(), amount);
     }
 
