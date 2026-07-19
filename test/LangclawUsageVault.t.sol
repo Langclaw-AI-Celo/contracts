@@ -143,6 +143,27 @@ contract LangclawUsageVaultTest is Test {
         assertEq(address(vault).balance, 1 ether);
     }
 
+    function test_PauseBlocksDirectNativeTransfersWithoutMovingFunds() public {
+        vm.prank(owner);
+        vault.pause();
+
+        uint256 payerBalanceBefore = payer.balance;
+        uint256 vaultBalanceBefore = address(vault).balance;
+
+        vm.prank(payer);
+        (bool success, bytes memory reason) = address(vault).call{value: 1 ether}("");
+
+        bytes4 selector;
+        assembly {
+            selector := mload(add(reason, 0x20))
+        }
+
+        assertFalse(success);
+        assertEq(selector, Pausable.EnforcedPause.selector);
+        assertEq(payer.balance, payerBalanceBefore);
+        assertEq(address(vault).balance, vaultBalanceBefore);
+    }
+
     function test_OnlyOwnerCanPause() public {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, stranger));
 
