@@ -359,6 +359,28 @@ contract LangclawUsageVaultTest is Test {
         assertEq(vault.totalWithdrawn(), 3 ether);
     }
 
+    function test_ConsumedWithdrawalIdRemainsUsedAfterFullWithdrawal() public {
+        bytes32 withdrawalId = keccak256("consumed-after-withdrawal");
+
+        _depositFrom(payer, 2 ether);
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, withdrawalId);
+
+        vm.prank(payer);
+        vault.withdraw(1 ether);
+
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+
+        vm.expectRevert(abi.encodeWithSelector(LangclawUsageVault.WithdrawalIdAlreadyUsed.selector, withdrawalId));
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1 ether, withdrawalId);
+
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+    }
+
     function test_MultiPayerPartialWithdrawalAccounting() public {
         address secondPayer = makeAddr("second-payer");
         _depositFrom(payer, 10 ether);
