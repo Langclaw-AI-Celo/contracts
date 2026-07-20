@@ -439,4 +439,48 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), 0);
         assertEq(vault.vaultBalance(), depositAmount);
     }
+
+    function test_TokenWithdrawalRejectsZeroAmountWithoutChangingAuthorization() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-zero-withdrawal-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("token-zero-withdrawal"));
+
+        vm.expectRevert(LangclawUsageVault.ZeroAmount.selector);
+        vm.prank(payer);
+        vault.withdraw(0);
+
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+        assertEq(vault.totalWithdrawn(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
+
+    function test_TokenWithdrawalRejectsUnauthorizedPayerWithoutChangingBalances() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 1e6;
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-unauthorized-withdrawal-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(LangclawUsageVault.UnauthorizedWithdrawal.selector, stranger, withdrawalAmount, 0)
+        );
+        vm.prank(stranger);
+        vault.withdraw(withdrawalAmount);
+
+        assertEq(usdt.balanceOf(stranger), 0);
+        assertEq(vault.authorizedWithdrawals(stranger), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
 }
