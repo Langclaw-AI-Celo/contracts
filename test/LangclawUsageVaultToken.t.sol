@@ -537,4 +537,31 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalWithdrawn(), totalAuthorization);
         assertEq(vault.vaultBalance(), depositAmount - totalAuthorization);
     }
+
+    function test_ConsumedTokenWithdrawalIdRemainsUsedAfterFullWithdrawal() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        bytes32 withdrawalId = keccak256("token-consumed-withdrawal-id");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-consumed-id-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, withdrawalId);
+
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        vm.expectRevert(abi.encodeWithSelector(LangclawUsageVault.WithdrawalIdAlreadyUsed.selector, withdrawalId));
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1e6, withdrawalId);
+
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+        assertEq(vault.vaultBalance(), depositAmount - withdrawalAmount);
+    }
 }
