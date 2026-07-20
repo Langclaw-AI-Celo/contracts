@@ -241,6 +241,26 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(vault.paused());
     }
 
+    function test_TwoStepOwnershipTransferAcceptsErc8021TaggedCalldata() public {
+        address newOwner = makeAddr("tagged-new-owner");
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.prank(owner);
+        (bool transferSuccess,) =
+            address(vault).call(bytes.concat(abi.encodeCall(vault.transferOwnership, (newOwner)), suffix));
+
+        assertTrue(transferSuccess);
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), newOwner);
+
+        vm.prank(newOwner);
+        (bool acceptSuccess,) = address(vault).call(bytes.concat(abi.encodeCall(vault.acceptOwnership, ()), suffix));
+
+        assertTrue(acceptSuccess);
+        assertEq(vault.owner(), newOwner);
+        assertEq(vault.pendingOwner(), address(0));
+    }
+
     function test_AcceptedOwnerControlsRecoveryFromPausedState() public {
         address newOwner = makeAddr("paused-new-owner");
 
