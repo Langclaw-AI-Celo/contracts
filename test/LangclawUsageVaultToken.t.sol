@@ -564,4 +564,36 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
         assertEq(vault.vaultBalance(), depositAmount - withdrawalAmount);
     }
+
+    function test_TokenAuthorizationRemainsWithdrawableAfterAuthorityRotation() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        address newAuthority = makeAddr("rotatedTokenAuthority");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-rotation-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("token-before-rotation"));
+
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        vm.expectRevert(LangclawUsageVault.InvalidWithdrawalAuthority.selector);
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1e6, keccak256("token-old-authority"));
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + withdrawalAmount);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+        assertEq(vault.vaultBalance(), depositAmount - withdrawalAmount);
+    }
 }
