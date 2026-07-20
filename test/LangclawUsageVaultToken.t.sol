@@ -382,4 +382,24 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), 0);
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
+
+    function test_TokenAuthorizationRequiresConfiguredAuthority() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        bytes32 withdrawalId = keccak256("token-unauthorized-authority");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-authority-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.expectRevert(LangclawUsageVault.InvalidWithdrawalAuthority.selector);
+        vm.prank(stranger);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, withdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
 }
