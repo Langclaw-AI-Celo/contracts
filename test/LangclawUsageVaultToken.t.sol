@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Test} from "forge-std/Test.sol";
@@ -18,6 +19,7 @@ contract LangclawUsageVaultTokenTest is Test {
 
     event Deposit(address indexed payer, uint256 amount, bytes32 indexed depositReference);
     event Withdrawal(address indexed payer, uint256 amount);
+    event WithdrawalAuthorized(address indexed payer, uint256 amount, bytes32 indexed withdrawalId);
 
     function setUp() public {
         usdt = new MockUSDT();
@@ -381,5 +383,297 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.authorizedWithdrawals(payer), 0);
         assertEq(vault.totalAuthorizedWithdrawals(), 0);
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
+    }
+
+    function test_TokenAuthorizationRequiresConfiguredAuthority() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        bytes32 withdrawalId = keccak256("token-unauthorized-authority");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-authority-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.expectRevert(LangclawUsageVault.InvalidWithdrawalAuthority.selector);
+        vm.prank(stranger);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, withdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
+
+    function test_TokenAuthorizationRejectsZeroPayerWithoutChangingState() public {
+        uint256 depositAmount = 10e6;
+        bytes32 withdrawalId = keccak256("token-zero-payer");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-zero-payer-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.expectRevert(LangclawUsageVault.InvalidPayer.selector);
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(address(0), 1e6, withdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
+
+    function test_TokenAuthorizationRejectsZeroAmountWithoutChangingState() public {
+        uint256 depositAmount = 10e6;
+        bytes32 withdrawalId = keccak256("token-zero-authorization");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-zero-authorization-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.expectRevert(LangclawUsageVault.ZeroAmount.selector);
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 0, withdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
+
+    function test_TokenWithdrawalRejectsZeroAmountWithoutChangingAuthorization() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-zero-withdrawal-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("token-zero-withdrawal"));
+
+        vm.expectRevert(LangclawUsageVault.ZeroAmount.selector);
+        vm.prank(payer);
+        vault.withdraw(0);
+
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+        assertEq(vault.totalWithdrawn(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
+
+    function test_TokenWithdrawalRejectsUnauthorizedPayerWithoutChangingBalances() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 1e6;
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-unauthorized-withdrawal-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(LangclawUsageVault.UnauthorizedWithdrawal.selector, stranger, withdrawalAmount, 0)
+        );
+        vm.prank(stranger);
+        vault.withdraw(withdrawalAmount);
+
+        assertEq(usdt.balanceOf(stranger), 0);
+        assertEq(vault.authorizedWithdrawals(stranger), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
+
+    function test_TokenWithdrawalIdCannotReplayAcrossPayers() public {
+        uint256 depositAmount = 10e6;
+        uint256 firstAuthorization = 3e6;
+        bytes32 withdrawalId = keccak256("token-cross-payer-replay");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-cross-payer-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, firstAuthorization, withdrawalId);
+
+        vm.expectRevert(abi.encodeWithSelector(LangclawUsageVault.WithdrawalIdAlreadyUsed.selector, withdrawalId));
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(stranger, 1e6, withdrawalId);
+
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), firstAuthorization);
+        assertEq(vault.authorizedWithdrawals(stranger), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), firstAuthorization);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
+
+    function test_RepeatedTokenAuthorizationsAccumulateAndClearAfterWithdrawal() public {
+        uint256 depositAmount = 10e6;
+        uint256 firstAuthorization = 3e6;
+        uint256 secondAuthorization = 2e6;
+        uint256 totalAuthorization = firstAuthorization + secondAuthorization;
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-repeat-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.startPrank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, firstAuthorization, keccak256("token-repeat-first"));
+        vault.authorizeWithdrawal(payer, secondAuthorization, keccak256("token-repeat-second"));
+        vm.stopPrank();
+
+        assertEq(vault.authorizedWithdrawals(payer), totalAuthorization);
+        assertEq(vault.totalAuthorizedWithdrawals(), totalAuthorization);
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+        vm.prank(payer);
+        vault.withdraw(totalAuthorization);
+
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + totalAuthorization);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), totalAuthorization);
+        assertEq(vault.vaultBalance(), depositAmount - totalAuthorization);
+    }
+
+    function test_ConsumedTokenWithdrawalIdRemainsUsedAfterFullWithdrawal() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        bytes32 withdrawalId = keccak256("token-consumed-withdrawal-id");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-consumed-id-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, withdrawalId);
+
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        vm.expectRevert(abi.encodeWithSelector(LangclawUsageVault.WithdrawalIdAlreadyUsed.selector, withdrawalId));
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1e6, withdrawalId);
+
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+        assertEq(vault.vaultBalance(), depositAmount - withdrawalAmount);
+    }
+
+    function test_TokenAuthorizationRemainsWithdrawableAfterAuthorityRotation() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        address newAuthority = makeAddr("rotatedTokenAuthority");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-rotation-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("token-before-rotation"));
+
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        vm.expectRevert(LangclawUsageVault.InvalidWithdrawalAuthority.selector);
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 1e6, keccak256("token-old-authority"));
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + withdrawalAmount);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+        assertEq(vault.vaultBalance(), depositAmount - withdrawalAmount);
+    }
+
+    function test_AcceptedTokenVaultOwnerControlsAuthorityRotation() public {
+        address newOwner = makeAddr("newTokenVaultOwner");
+        address newAuthority = makeAddr("newTokenVaultAuthority");
+
+        vm.prank(owner);
+        vault.transferOwnership(newOwner);
+
+        vm.prank(newOwner);
+        vault.acceptOwnership();
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, owner));
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        vm.prank(newOwner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        assertEq(vault.owner(), newOwner);
+        assertEq(vault.pendingOwner(), address(0));
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+    }
+
+    function test_TokenAuthorizationAcceptsErc8021TaggedCalldata() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        bytes32 withdrawalId = keccak256("tagged-token-authorization");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("tagged-token-authorization-deposit"), depositAmount);
+        vm.stopPrank();
+
+        bytes memory payload = abi.encodeCall(vault.authorizeWithdrawal, (payer, withdrawalAmount, withdrawalId));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, false, true, true, address(vault));
+        emit WithdrawalAuthorized(payer, withdrawalAmount, withdrawalId);
+
+        vm.prank(withdrawalAuthority);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
+
+    function test_RotatedTokenAuthorityControlsNewAuthorizations() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        address newAuthority = makeAddr("activeTokenAuthority");
+        bytes32 rejectedId = keccak256("token-rejected-old-authority");
+        bytes32 acceptedId = keccak256("token-accepted-new-authority");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-new-authority-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        vm.expectRevert(LangclawUsageVault.InvalidWithdrawalAuthority.selector);
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, rejectedId);
+
+        vm.prank(newAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, acceptedId);
+
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+        assertFalse(vault.usedWithdrawalIds(rejectedId));
+        assertTrue(vault.usedWithdrawalIds(acceptedId));
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+        assertEq(vault.vaultBalance(), depositAmount);
     }
 }
