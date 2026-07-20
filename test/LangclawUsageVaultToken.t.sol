@@ -19,6 +19,7 @@ contract LangclawUsageVaultTokenTest is Test {
 
     event Deposit(address indexed payer, uint256 amount, bytes32 indexed depositReference);
     event Withdrawal(address indexed payer, uint256 amount);
+    event WithdrawalAuthorized(address indexed payer, uint256 amount, bytes32 indexed withdrawalId);
 
     function setUp() public {
         usdt = new MockUSDT();
@@ -618,5 +619,31 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.owner(), newOwner);
         assertEq(vault.pendingOwner(), address(0));
         assertEq(vault.withdrawalAuthority(), newAuthority);
+    }
+
+    function test_TokenAuthorizationAcceptsErc8021TaggedCalldata() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        bytes32 withdrawalId = keccak256("tagged-token-authorization");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("tagged-token-authorization-deposit"), depositAmount);
+        vm.stopPrank();
+
+        bytes memory payload = abi.encodeCall(vault.authorizeWithdrawal, (payer, withdrawalAmount, withdrawalId));
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.expectEmit(true, false, true, true, address(vault));
+        emit WithdrawalAuthorized(payer, withdrawalAmount, withdrawalId);
+
+        vm.prank(withdrawalAuthority);
+        (bool success,) = address(vault).call(bytes.concat(payload, suffix));
+
+        assertTrue(success);
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+        assertEq(vault.vaultBalance(), depositAmount);
     }
 }
