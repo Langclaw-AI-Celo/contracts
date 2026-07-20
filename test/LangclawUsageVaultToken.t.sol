@@ -507,4 +507,34 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), firstAuthorization);
         assertEq(vault.vaultBalance(), depositAmount);
     }
+
+    function test_RepeatedTokenAuthorizationsAccumulateAndClearAfterWithdrawal() public {
+        uint256 depositAmount = 10e6;
+        uint256 firstAuthorization = 3e6;
+        uint256 secondAuthorization = 2e6;
+        uint256 totalAuthorization = firstAuthorization + secondAuthorization;
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-repeat-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.startPrank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, firstAuthorization, keccak256("token-repeat-first"));
+        vault.authorizeWithdrawal(payer, secondAuthorization, keccak256("token-repeat-second"));
+        vm.stopPrank();
+
+        assertEq(vault.authorizedWithdrawals(payer), totalAuthorization);
+        assertEq(vault.totalAuthorizedWithdrawals(), totalAuthorization);
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+        vm.prank(payer);
+        vault.withdraw(totalAuthorization);
+
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + totalAuthorization);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), totalAuthorization);
+        assertEq(vault.vaultBalance(), depositAmount - totalAuthorization);
+    }
 }
