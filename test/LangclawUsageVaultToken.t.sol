@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Test} from "forge-std/Test.sol";
@@ -595,5 +596,27 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), 0);
         assertEq(vault.totalWithdrawn(), withdrawalAmount);
         assertEq(vault.vaultBalance(), depositAmount - withdrawalAmount);
+    }
+
+    function test_AcceptedTokenVaultOwnerControlsAuthorityRotation() public {
+        address newOwner = makeAddr("newTokenVaultOwner");
+        address newAuthority = makeAddr("newTokenVaultAuthority");
+
+        vm.prank(owner);
+        vault.transferOwnership(newOwner);
+
+        vm.prank(newOwner);
+        vault.acceptOwnership();
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, owner));
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        vm.prank(newOwner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        assertEq(vault.owner(), newOwner);
+        assertEq(vault.pendingOwner(), address(0));
+        assertEq(vault.withdrawalAuthority(), newAuthority);
     }
 }
