@@ -402,4 +402,41 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), 0);
         assertEq(vault.vaultBalance(), depositAmount);
     }
+
+    function test_TokenAuthorizationRejectsZeroPayerWithoutChangingState() public {
+        uint256 depositAmount = 10e6;
+        bytes32 withdrawalId = keccak256("token-zero-payer");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-zero-payer-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.expectRevert(LangclawUsageVault.InvalidPayer.selector);
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(address(0), 1e6, withdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
+
+    function test_TokenAuthorizationRejectsZeroAmountWithoutChangingState() public {
+        uint256 depositAmount = 10e6;
+        bytes32 withdrawalId = keccak256("token-zero-authorization");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-zero-authorization-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.expectRevert(LangclawUsageVault.ZeroAmount.selector);
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, 0, withdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
 }
