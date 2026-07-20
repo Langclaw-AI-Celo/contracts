@@ -1292,6 +1292,45 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalWithdrawn(), 0);
         assertTrue(vault.usedWithdrawalIds(withdrawalId));
     }
+
+    function test_PausedTokenVaultAllowsAuthorizationForRecovery() public {
+        uint256 depositAmount = 20e6;
+        uint256 withdrawalAmount = 5e6;
+        bytes32 withdrawalId = keccak256("token-paused-recovery");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-recovery-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        vault.pause();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, withdrawalId);
+
+        assertTrue(vault.paused());
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        vm.prank(owner);
+        vault.unpause();
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + withdrawalAmount);
+        assertEq(usdt.balanceOf(address(vault)), depositAmount - withdrawalAmount);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
+    }
 }
 
 contract MockUSDT is ERC20 {
