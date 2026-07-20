@@ -368,6 +368,32 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(vault.paused());
     }
 
+    function test_ReplacedPendingOwnerCannotAcceptOwnership() public {
+        address replacedOwner = makeAddr("replaced-pending-owner");
+        address replacementOwner = makeAddr("replacement-pending-owner");
+
+        vm.startPrank(owner);
+        vault.transferOwnership(replacedOwner);
+        vault.transferOwnership(replacementOwner);
+        vm.stopPrank();
+
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), replacementOwner);
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, replacedOwner));
+        vm.prank(replacedOwner);
+        vault.acceptOwnership();
+
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), replacementOwner);
+
+        vm.prank(replacementOwner);
+        vault.acceptOwnership();
+
+        assertEq(vault.owner(), replacementOwner);
+        assertEq(vault.pendingOwner(), address(0));
+    }
+
     function test_RevertZeroWithdrawal() public {
         vm.expectRevert(LangclawUsageVault.ZeroAmount.selector);
 
