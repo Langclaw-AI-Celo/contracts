@@ -646,4 +646,34 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
         assertEq(vault.vaultBalance(), depositAmount);
     }
+
+    function test_RotatedTokenAuthorityControlsNewAuthorizations() public {
+        uint256 depositAmount = 10e6;
+        uint256 withdrawalAmount = 4e6;
+        address newAuthority = makeAddr("activeTokenAuthority");
+        bytes32 rejectedId = keccak256("token-rejected-old-authority");
+        bytes32 acceptedId = keccak256("token-accepted-new-authority");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-new-authority-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        vault.setWithdrawalAuthority(newAuthority);
+
+        vm.expectRevert(LangclawUsageVault.InvalidWithdrawalAuthority.selector);
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, rejectedId);
+
+        vm.prank(newAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, acceptedId);
+
+        assertEq(vault.withdrawalAuthority(), newAuthority);
+        assertFalse(vault.usedWithdrawalIds(rejectedId));
+        assertTrue(vault.usedWithdrawalIds(acceptedId));
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+        assertEq(vault.vaultBalance(), depositAmount);
+    }
 }
