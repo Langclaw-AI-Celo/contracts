@@ -1246,6 +1246,50 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), depositAmount + 1);
     }
 
+    function test_TokenAuthorizationsReserveCapacityAcrossPayers() public {
+        uint256 depositAmount = 10e6;
+        uint256 firstAuthorization = 7e6;
+        uint256 secondAuthorization = 4e6;
+        bytes32 secondWithdrawalId = keccak256("token-capacity-second-payer");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-capacity-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, firstAuthorization, keccak256("token-capacity-first-payer"));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LangclawUsageVault.InsufficientVaultBalance.selector,
+                firstAuthorization + secondAuthorization,
+                depositAmount
+            )
+        );
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(stranger, secondAuthorization, secondWithdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(secondWithdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), firstAuthorization);
+        assertEq(vault.authorizedWithdrawals(stranger), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), firstAuthorization);
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), 1e6);
+        vault.depositTokenAmount(keccak256("token-capacity-top-up"), 1e6);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(stranger, secondAuthorization, secondWithdrawalId);
+
+        assertTrue(vault.usedWithdrawalIds(secondWithdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), firstAuthorization);
+        assertEq(vault.authorizedWithdrawals(stranger), secondAuthorization);
+        assertEq(vault.totalAuthorizedWithdrawals(), firstAuthorization + secondAuthorization);
+        assertEq(vault.vaultBalance(), depositAmount + 1e6);
+    }
+
     function test_TokenVaultRejectsPlainNativeTransfer() public {
         vm.deal(payer, 1 ether);
 
