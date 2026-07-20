@@ -241,6 +241,26 @@ contract LangclawUsageVaultTest is Test {
         assertTrue(vault.paused());
     }
 
+    function test_TwoStepOwnershipTransferAcceptsErc8021TaggedCalldata() public {
+        address newOwner = makeAddr("tagged-new-owner");
+        bytes memory suffix = hex"63656c6f5f316139383733383633366462110080218021802180218021802180218021";
+
+        vm.prank(owner);
+        (bool transferSuccess,) =
+            address(vault).call(bytes.concat(abi.encodeCall(vault.transferOwnership, (newOwner)), suffix));
+
+        assertTrue(transferSuccess);
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), newOwner);
+
+        vm.prank(newOwner);
+        (bool acceptSuccess,) = address(vault).call(bytes.concat(abi.encodeCall(vault.acceptOwnership, ()), suffix));
+
+        assertTrue(acceptSuccess);
+        assertEq(vault.owner(), newOwner);
+        assertEq(vault.pendingOwner(), address(0));
+    }
+
     function test_AcceptedOwnerControlsRecoveryFromPausedState() public {
         address newOwner = makeAddr("paused-new-owner");
 
@@ -346,6 +366,32 @@ contract LangclawUsageVaultTest is Test {
         vault.pause();
 
         assertTrue(vault.paused());
+    }
+
+    function test_ReplacedPendingOwnerCannotAcceptOwnership() public {
+        address replacedOwner = makeAddr("replaced-pending-owner");
+        address replacementOwner = makeAddr("replacement-pending-owner");
+
+        vm.startPrank(owner);
+        vault.transferOwnership(replacedOwner);
+        vault.transferOwnership(replacementOwner);
+        vm.stopPrank();
+
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), replacementOwner);
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, replacedOwner));
+        vm.prank(replacedOwner);
+        vault.acceptOwnership();
+
+        assertEq(vault.owner(), owner);
+        assertEq(vault.pendingOwner(), replacementOwner);
+
+        vm.prank(replacementOwner);
+        vault.acceptOwnership();
+
+        assertEq(vault.owner(), replacementOwner);
+        assertEq(vault.pendingOwner(), address(0));
     }
 
     function test_RevertZeroWithdrawal() public {
@@ -1200,6 +1246,50 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), depositAmount + 1);
     }
 
+    function test_TokenAuthorizationsReserveCapacityAcrossPayers() public {
+        uint256 depositAmount = 10e6;
+        uint256 firstAuthorization = 7e6;
+        uint256 secondAuthorization = 4e6;
+        bytes32 secondWithdrawalId = keccak256("token-capacity-second-payer");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-capacity-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, firstAuthorization, keccak256("token-capacity-first-payer"));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LangclawUsageVault.InsufficientVaultBalance.selector,
+                firstAuthorization + secondAuthorization,
+                depositAmount
+            )
+        );
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(stranger, secondAuthorization, secondWithdrawalId);
+
+        assertFalse(vault.usedWithdrawalIds(secondWithdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), firstAuthorization);
+        assertEq(vault.authorizedWithdrawals(stranger), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), firstAuthorization);
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), 1e6);
+        vault.depositTokenAmount(keccak256("token-capacity-top-up"), 1e6);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(stranger, secondAuthorization, secondWithdrawalId);
+
+        assertTrue(vault.usedWithdrawalIds(secondWithdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), firstAuthorization);
+        assertEq(vault.authorizedWithdrawals(stranger), secondAuthorization);
+        assertEq(vault.totalAuthorizedWithdrawals(), firstAuthorization + secondAuthorization);
+        assertEq(vault.vaultBalance(), depositAmount + 1e6);
+    }
+
     function test_TokenVaultRejectsPlainNativeTransfer() public {
         vm.deal(payer, 1 ether);
 
@@ -1245,6 +1335,45 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
         assertEq(vault.totalWithdrawn(), 0);
         assertTrue(vault.usedWithdrawalIds(withdrawalId));
+    }
+
+    function test_PausedTokenVaultAllowsAuthorizationForRecovery() public {
+        uint256 depositAmount = 20e6;
+        uint256 withdrawalAmount = 5e6;
+        bytes32 withdrawalId = keccak256("token-paused-recovery");
+
+        vm.startPrank(payer);
+        usdt.approve(address(vault), depositAmount);
+        vault.depositTokenAmount(keccak256("token-recovery-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        vault.pause();
+
+        vm.prank(withdrawalAuthority);
+        vault.authorizeWithdrawal(payer, withdrawalAmount, withdrawalId);
+
+        assertTrue(vault.paused());
+        assertTrue(vault.usedWithdrawalIds(withdrawalId));
+        assertEq(vault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(vault.totalAuthorizedWithdrawals(), withdrawalAmount);
+
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        vm.prank(owner);
+        vault.unpause();
+
+        uint256 payerBalanceBefore = usdt.balanceOf(payer);
+        vm.prank(payer);
+        vault.withdraw(withdrawalAmount);
+
+        assertEq(usdt.balanceOf(payer), payerBalanceBefore + withdrawalAmount);
+        assertEq(usdt.balanceOf(address(vault)), depositAmount - withdrawalAmount);
+        assertEq(vault.authorizedWithdrawals(payer), 0);
+        assertEq(vault.totalAuthorizedWithdrawals(), 0);
+        assertEq(vault.totalWithdrawn(), withdrawalAmount);
     }
 }
 
