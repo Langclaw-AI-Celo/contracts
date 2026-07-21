@@ -5,10 +5,16 @@ import {Script} from "forge-std/Script.sol";
 import {LangclawUsageVault} from "../src/LangclawUsageVault.sol";
 
 contract DeployLangclawUsageVaultScript is Script {
+    error InvalidDepositToken(address depositToken);
+
     function run() external returns (LangclawUsageVault vault) {
         address owner = vm.envAddress("LANGCLAW_USAGE_VAULT_OWNER");
         address withdrawalAuthority = vm.envAddress("LANGCLAW_USAGE_VAULT_WITHDRAWAL_AUTHORITY");
         address depositToken = vm.envOr("LANGCLAW_USAGE_VAULT_DEPOSIT_TOKEN", address(0));
+
+        if (depositToken != address(0) && depositToken.code.length == 0) {
+            revert InvalidDepositToken(depositToken);
+        }
 
         vm.startBroadcast();
         vault = new LangclawUsageVault(owner, withdrawalAuthority, depositToken);
