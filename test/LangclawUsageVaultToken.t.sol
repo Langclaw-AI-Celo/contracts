@@ -10,7 +10,8 @@ import {
     FailingTransferFromToken,
     FailingTransferToken,
     FeeOnTransferToken,
-    MockUSDT
+    MockUSDT,
+    SwitchableWithdrawalFeeToken
 } from "./helpers/LangclawUsageVaultFixtures.sol";
 
 contract LangclawUsageVaultTokenTest is Test {
@@ -184,6 +185,38 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(failingVault.authorizedWithdrawals(payer), amount);
         assertEq(failingVault.totalAuthorizedWithdrawals(), amount);
         assertEq(failingVault.totalWithdrawn(), 0);
+    }
+
+    function test_InexactTokenWithdrawalRevertsAndPreservesAuthorization() public {
+        SwitchableWithdrawalFeeToken token = new SwitchableWithdrawalFeeToken();
+        LangclawUsageVault feeVault = new LangclawUsageVault(owner, withdrawalAuthority, address(token));
+        uint256 depositAmount = 100 ether;
+        uint256 withdrawalAmount = 40 ether;
+        uint256 receivedAmount = 36 ether;
+        bytes4 unexpectedWithdrawalSelector =
+            bytes4(keccak256("UnexpectedTokenWithdrawalAmount(uint256,uint256,uint256)"));
+
+        token.mint(payer, depositAmount);
+        vm.startPrank(payer);
+        token.approve(address(feeVault), depositAmount);
+        feeVault.depositTokenAmount(keccak256("switchable-fee-deposit"), depositAmount);
+        vm.stopPrank();
+
+        vm.prank(withdrawalAuthority);
+        feeVault.authorizeWithdrawal(payer, withdrawalAmount, keccak256("switchable-fee-withdrawal"));
+        token.setWithdrawalFeeEnabled(true);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(unexpectedWithdrawalSelector, withdrawalAmount, withdrawalAmount, receivedAmount)
+        );
+        vm.prank(payer);
+        feeVault.withdraw(withdrawalAmount);
+
+        assertEq(token.balanceOf(payer), 0);
+        assertEq(token.balanceOf(address(feeVault)), depositAmount);
+        assertEq(feeVault.authorizedWithdrawals(payer), withdrawalAmount);
+        assertEq(feeVault.totalAuthorizedWithdrawals(), withdrawalAmount);
+        assertEq(feeVault.totalWithdrawn(), 0);
     }
 
     function testFuzz_TokenPartialWithdrawalAccounting(

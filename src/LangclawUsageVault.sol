@@ -29,6 +29,7 @@ contract LangclawUsageVault is Ownable2Step, Pausable, ReentrancyGuard {
     error UnsupportedNativeDeposit();
     error UnsupportedTokenDeposit();
     error UnexpectedTokenDepositAmount(uint256 requested, uint256 received);
+    error UnexpectedTokenWithdrawalAmount(uint256 requested, uint256 debited, uint256 received);
 
     address public immutable depositToken;
     address public withdrawalAuthority;
@@ -140,7 +141,19 @@ contract LangclawUsageVault is Ownable2Step, Pausable, ReentrancyGuard {
                 revert NativeTransferFailed(msg.sender, amount);
             }
         } else {
-            IERC20(depositToken).safeTransfer(msg.sender, amount);
+            IERC20 token = IERC20(depositToken);
+            uint256 vaultBalanceBefore = token.balanceOf(address(this));
+            uint256 payerBalanceBefore = token.balanceOf(msg.sender);
+            token.safeTransfer(msg.sender, amount);
+            uint256 vaultBalanceAfter = token.balanceOf(address(this));
+            uint256 payerBalanceAfter = token.balanceOf(msg.sender);
+            uint256 debitedAmount = vaultBalanceBefore >= vaultBalanceAfter ? vaultBalanceBefore - vaultBalanceAfter : 0;
+            uint256 receivedAmount =
+                payerBalanceAfter >= payerBalanceBefore ? payerBalanceAfter - payerBalanceBefore : 0;
+
+            if (debitedAmount != amount || receivedAmount != amount) {
+                revert UnexpectedTokenWithdrawalAmount(amount, debitedAmount, receivedAmount);
+            }
         }
 
         emit Withdrawal(msg.sender, amount);
