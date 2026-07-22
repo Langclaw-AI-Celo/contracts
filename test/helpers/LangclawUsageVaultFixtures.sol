@@ -80,6 +80,32 @@ contract FeeOnTransferToken is ERC20 {
     }
 }
 
+contract SwitchableWithdrawalFeeToken is ERC20 {
+    bool internal withdrawalFeeEnabled;
+
+    constructor() ERC20("Switchable Withdrawal Fee Token", "SWF") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function setWithdrawalFeeEnabled(bool enabled) external {
+        withdrawalFeeEnabled = enabled;
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        if (!withdrawalFeeEnabled) {
+            return super.transfer(to, amount);
+        }
+
+        uint256 fee = amount / 10;
+        _transfer(_msgSender(), to, amount - fee);
+        _burn(_msgSender(), fee);
+
+        return true;
+    }
+}
+
 contract FailingTransferToken is ERC20 {
     bool internal transferFails;
 
