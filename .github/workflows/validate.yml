@@ -23,6 +23,9 @@ jobs:
         with:
           version: v1.7.1
 
+      - name: Validate vendored dependencies
+        run: bash script/check-vendored-dependencies.sh
+
       - name: Check formatting
         run: forge fmt --check
 
