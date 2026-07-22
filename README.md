@@ -218,8 +218,11 @@ verification:
 
 ## Setup
 
+Foundry dependencies are vendored under `lib/`. A fresh checkout needs no
+submodule initialization.
+
 ```bash
-git submodule update --init
+bash script/check-vendored-dependencies.sh
 forge build
 forge test
 ```
@@ -229,6 +232,28 @@ Requires Foundry: https://book.getfoundry.sh/getting-started/installation
 The local Foundry profile uses `solc 0.8.24`, optimizer `200`, and `via_ir =
 true`. The backend verifier rebuilds Celo verification bundles with deploy-
 matching `solc 0.8.35` settings.
+
+### Updating Vendored Dependencies
+
+Update vendored dependencies through a reviewed source change:
+
+1. Replace the dependency sources under `lib/`. Do not include nested `.git`
+   metadata.
+2. Review the source changes, then stage them with
+   `git add -- lib/<dependency>`. The validator rejects unstaged tracked changes
+   and untracked nonignored files under every listed dependency path.
+3. Derive the staged dependency tree OID without creating a temporary commit:
+   `candidate_root="$(git write-tree)"`, then
+   `git rev-parse "${candidate_root}:lib/<dependency>"`.
+4. Update the package version, upstream revision, and staged tree OID in
+   `vendor.lock`. The upstream revision documents provenance. It does not prove
+   the source tree.
+5. Stage `vendor.lock` itself and any related reviewed files. The validator
+   reads the manifest from the staged candidate and rejects unstaged
+   `vendor.lock` changes.
+6. Run `bash script/check-vendored-dependencies.sh`.
+7. Commit the vendor source and manifest changes together after validation
+   passes.
 
 Standalone Foundry usage in this repo reads `CELO_RPC_URL` and `PRIVATE_KEY`
 from `contracts/.env`. Backend deployment helpers instead use

@@ -1,0 +1,5 @@
+# Vendored Foundry dependency manifest.
+# Upstream revisions record provenance only. Committed tree OIDs control reproducibility.
+# name|path|package_version|upstream_revision|tree_oid
+forge-std|lib/forge-std|1.16.1|620536fa5277db4e3fd46772d5cbc1ea0696fb43|7a87f9b3d611ddb4475c1e883c79b0d5a4693be4
+openzeppelin-contracts|lib/openzeppelin-contracts|5.6.1|5fd1781b1454fd1ef8e722282f86f9293cacf256|2c32f79284ba15dfb7758377a8dd44a3be2531b6
