@@ -6,7 +6,12 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Test} from "forge-std/Test.sol";
 import {LangclawUsageVault} from "../src/LangclawUsageVault.sol";
-import {FailingTransferFromToken, FailingTransferToken, MockUSDT} from "./helpers/LangclawUsageVaultFixtures.sol";
+import {
+    FailingTransferFromToken,
+    FailingTransferToken,
+    FeeOnTransferToken,
+    MockUSDT
+} from "./helpers/LangclawUsageVaultFixtures.sol";
 
 contract LangclawUsageVaultTokenTest is Test {
     LangclawUsageVault internal vault;
@@ -61,6 +66,27 @@ contract LangclawUsageVaultTokenTest is Test {
         assertEq(token.balanceOf(address(failingVault)), 0);
         assertEq(token.allowance(payer, address(failingVault)), amount);
         assertEq(failingVault.vaultBalance(), 0);
+    }
+
+    function test_FeeOnTransferDepositRevertsWithoutCreditingRequestedAmount() public {
+        FeeOnTransferToken token = new FeeOnTransferToken();
+        LangclawUsageVault feeVault = new LangclawUsageVault(owner, withdrawalAuthority, address(token));
+        uint256 amount = 100 ether;
+        uint256 receivedAmount = 90 ether;
+        bytes4 unexpectedDepositSelector = bytes4(keccak256("UnexpectedTokenDepositAmount(uint256,uint256)"));
+
+        token.mint(payer, amount);
+        vm.prank(payer);
+        token.approve(address(feeVault), amount);
+
+        vm.expectRevert(abi.encodeWithSelector(unexpectedDepositSelector, amount, receivedAmount));
+        vm.prank(payer);
+        feeVault.depositTokenAmount(keccak256("fee-on-transfer-deposit"), amount);
+
+        assertEq(token.balanceOf(payer), amount);
+        assertEq(token.balanceOf(address(feeVault)), 0);
+        assertEq(token.allowance(payer, address(feeVault)), amount);
+        assertEq(feeVault.vaultBalance(), 0);
     }
 
     function test_TokenDepositAcceptsErc8021TaggedCalldata() public {
