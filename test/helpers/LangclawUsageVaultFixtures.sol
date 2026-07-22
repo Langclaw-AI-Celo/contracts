@@ -62,6 +62,24 @@ contract MockUSDT is ERC20 {
     }
 }
 
+contract FeeOnTransferToken is ERC20 {
+    constructor() ERC20("Fee-on-Transfer Token", "FEE") {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function transferFrom(address from, address to, uint256 amount) public override returns (bool) {
+        _spendAllowance(from, _msgSender(), amount);
+
+        uint256 fee = amount / 10;
+        _transfer(from, to, amount - fee);
+        _burn(from, fee);
+
+        return true;
+    }
+}
+
 contract FailingTransferToken is ERC20 {
     bool internal transferFails;
 
