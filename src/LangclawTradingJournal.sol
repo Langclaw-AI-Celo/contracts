@@ -63,13 +63,13 @@ contract LangclawTradingJournal {
         int256 pnlBps,
         string calldata status
     ) external returns (uint256 recordId) {
-        if (runId.isEmpty()) {
+        if (runId.isBlank()) {
             revert EmptyRunId();
         }
-        if (strategyId.isEmpty()) {
+        if (strategyId.isBlank()) {
             revert EmptyStrategyId();
         }
-        if (market.isEmpty()) {
+        if (market.isBlank()) {
             revert EmptyMarket();
         }
         if (decisionHash.isEmpty()) {
@@ -78,13 +78,13 @@ contract LangclawTradingJournal {
         if (resultHash.isEmpty()) {
             revert EmptyResultHash();
         }
-        if (evidenceUri.isEmpty()) {
+        if (evidenceUri.isBlank()) {
             revert EmptyEvidenceUri();
         }
-        if (action.isEmpty()) {
+        if (action.isBlank()) {
             revert EmptyAction();
         }
-        if (status.isEmpty()) {
+        if (status.isBlank()) {
             revert EmptyStatus();
         }
 

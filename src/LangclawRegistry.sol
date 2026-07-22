@@ -44,7 +44,7 @@ contract LangclawRegistry {
         string calldata evidenceUri,
         string calldata signalType
     ) external returns (uint256 decisionId) {
-        if (runId.isEmpty()) {
+        if (runId.isBlank()) {
             revert EmptyRunId();
         }
 
@@ -52,11 +52,11 @@ contract LangclawRegistry {
             revert EmptyDecisionHash();
         }
 
-        if (evidenceUri.isEmpty()) {
+        if (evidenceUri.isBlank()) {
             revert EmptyEvidenceUri();
         }
 
-        if (signalType.isEmpty()) {
+        if (signalType.isBlank()) {
             revert EmptySignalType();
         }
 

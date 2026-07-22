@@ -88,10 +88,11 @@ contract LangclawRegistryTest is Test {
         string memory evidenceUri,
         string memory signalType
     ) public {
-        vm.assume(bytes(runId).length > 0);
         vm.assume(decisionHash != bytes32(0));
-        vm.assume(bytes(evidenceUri).length > 0);
-        vm.assume(bytes(signalType).length > 0);
+
+        runId = string.concat("run-", runId);
+        evidenceUri = string.concat("langclaw://evidence/", evidenceUri);
+        signalType = string.concat("signal-", signalType);
 
         vm.prank(recorder);
         uint256 decisionId = registry.recordAgentDecision(agentId, runId, decisionHash, evidenceUri, signalType);
@@ -150,6 +151,31 @@ contract LangclawRegistryTest is Test {
         vm.expectRevert(LangclawRegistry.EmptySignalType.selector);
 
         registry.recordAgentDecision(8004, "run-1", keccak256("celo-alpha-run"), "langclaw://evidence/run-1", "");
+    }
+
+    function test_WhitespaceValidationPreservesMeaningfulDecisionMetadata() public {
+        string memory blank = " \t\n\x0b\x0c\r";
+        bytes32 decisionHash = keccak256("whitespace-only-decision");
+
+        vm.expectRevert(LangclawRegistry.EmptyRunId.selector);
+        registry.recordAgentDecision(8004, blank, decisionHash, "langclaw://evidence/run-1", "smart-money");
+
+        vm.expectRevert(LangclawRegistry.EmptyEvidenceUri.selector);
+        registry.recordAgentDecision(8004, "run-1", decisionHash, blank, "smart-money");
+
+        vm.expectRevert(LangclawRegistry.EmptySignalType.selector);
+        registry.recordAgentDecision(8004, "run-1", decisionHash, "langclaw://evidence/run-1", blank);
+
+        assertEq(registry.nextDecisionId(), 0);
+
+        string memory meaningful = " \tvalue\r\n";
+        uint256 decisionId = registry.recordAgentDecision(8004, meaningful, decisionHash, meaningful, meaningful);
+        LangclawRegistry.AgentDecision memory decision = registry.getDecision(decisionId);
+
+        assertEq(decision.runId, meaningful);
+        assertEq(decision.evidenceUri, meaningful);
+        assertEq(decision.signalType, meaningful);
+        assertEq(registry.nextDecisionId(), 1);
     }
 
     function test_RevertMissingDecision() public {

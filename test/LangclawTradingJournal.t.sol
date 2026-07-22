@@ -145,10 +145,11 @@ contract LangclawTradingJournalTest is Test {
         bytes32 resultHash,
         string memory status
     ) public {
-        vm.assume(bytes(runId).length > 0);
         vm.assume(decisionHash != bytes32(0));
         vm.assume(resultHash != bytes32(0));
-        vm.assume(bytes(status).length > 0);
+
+        runId = string.concat("run-", runId);
+        status = string.concat("status-", status);
 
         vm.prank(recorder);
         uint256 recordId = journal.recordStrategyRun(
@@ -349,6 +350,103 @@ contract LangclawTradingJournalTest is Test {
             0,
             ""
         );
+    }
+
+    function test_WhitespaceValidationPreservesMeaningfulStrategyMetadata() public {
+        string memory blank = " \t\n\x0b\x0c\r";
+        bytes32 decisionHash = keccak256("whitespace-only-strategy-decision");
+        bytes32 resultHash = keccak256("whitespace-only-strategy-result");
+
+        vm.expectRevert(LangclawTradingJournal.EmptyRunId.selector);
+        journal.recordStrategyRun(
+            133,
+            blank,
+            "strategy-1",
+            "celo:pair",
+            decisionHash,
+            resultHash,
+            "langclaw://strategy/run-1",
+            "hold",
+            0,
+            "backtested"
+        );
+
+        vm.expectRevert(LangclawTradingJournal.EmptyStrategyId.selector);
+        journal.recordStrategyRun(
+            133,
+            "run-1",
+            blank,
+            "celo:pair",
+            decisionHash,
+            resultHash,
+            "langclaw://strategy/run-1",
+            "hold",
+            0,
+            "backtested"
+        );
+
+        vm.expectRevert(LangclawTradingJournal.EmptyMarket.selector);
+        journal.recordStrategyRun(
+            133,
+            "run-1",
+            "strategy-1",
+            blank,
+            decisionHash,
+            resultHash,
+            "langclaw://strategy/run-1",
+            "hold",
+            0,
+            "backtested"
+        );
+
+        vm.expectRevert(LangclawTradingJournal.EmptyEvidenceUri.selector);
+        journal.recordStrategyRun(
+            133, "run-1", "strategy-1", "celo:pair", decisionHash, resultHash, blank, "hold", 0, "backtested"
+        );
+
+        vm.expectRevert(LangclawTradingJournal.EmptyAction.selector);
+        journal.recordStrategyRun(
+            133,
+            "run-1",
+            "strategy-1",
+            "celo:pair",
+            decisionHash,
+            resultHash,
+            "langclaw://strategy/run-1",
+            blank,
+            0,
+            "backtested"
+        );
+
+        vm.expectRevert(LangclawTradingJournal.EmptyStatus.selector);
+        journal.recordStrategyRun(
+            133,
+            "run-1",
+            "strategy-1",
+            "celo:pair",
+            decisionHash,
+            resultHash,
+            "langclaw://strategy/run-1",
+            "hold",
+            0,
+            blank
+        );
+
+        assertEq(journal.nextRecordId(), 0);
+
+        string memory meaningful = " \tvalue\r\n";
+        uint256 recordId = journal.recordStrategyRun(
+            133, meaningful, meaningful, meaningful, decisionHash, resultHash, meaningful, meaningful, 0, meaningful
+        );
+        LangclawTradingJournal.StrategyRecord memory record = journal.getRecord(recordId);
+
+        assertEq(record.runId, meaningful);
+        assertEq(record.strategyId, meaningful);
+        assertEq(record.market, meaningful);
+        assertEq(record.evidenceUri, meaningful);
+        assertEq(record.action, meaningful);
+        assertEq(record.status, meaningful);
+        assertEq(journal.nextRecordId(), 1);
     }
 
     function test_AllowsNegativeAndPositivePnlBps() public {
