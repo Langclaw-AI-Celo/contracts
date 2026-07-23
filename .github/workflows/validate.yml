@@ -23,6 +23,9 @@ jobs:
         with:
           version: v1.7.1
 
+      - name: Check README links
+        run: bash script/check-readme-links.sh
+
       - name: Validate vendored dependencies
         run: bash script/check-vendored-dependencies.sh
 

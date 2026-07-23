@@ -89,7 +89,7 @@ Latest ERC-8004 decision run:
 | --- | --- | --- |
 | `LangclawRegistry` | [`src/LangclawRegistry.sol`](src/LangclawRegistry.sol) | [`test/LangclawRegistry.t.sol`](test/LangclawRegistry.t.sol) |
 | `LangclawTradingJournal` | [`src/LangclawTradingJournal.sol`](src/LangclawTradingJournal.sol) | [`test/LangclawTradingJournal.t.sol`](test/LangclawTradingJournal.t.sol) |
-| `LangclawUsageVault` | [`src/LangclawUsageVault.sol`](src/LangclawUsageVault.sol) | [`test/LangclawUsageVault.t.sol`](test/LangclawUsageVault.t.sol) |
+| `LangclawUsageVault` | [`src/LangclawUsageVault.sol`](src/LangclawUsageVault.sol) | [Native](test/LangclawUsageVaultNative.t.sol), [token](test/LangclawUsageVaultToken.t.sol), and [deployment](test/DeployLangclawUsageVault.t.sol) |
 
 ## `LangclawRegistry`
 
@@ -222,6 +222,7 @@ Foundry dependencies are vendored under `lib/`. A fresh checkout needs no
 submodule initialization.
 
 ```bash
+bash script/check-readme-links.sh
 bash script/check-vendored-dependencies.sh
 forge build
 forge test
