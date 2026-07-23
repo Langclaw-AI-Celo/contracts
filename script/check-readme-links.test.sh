@@ -27,4 +27,15 @@ grep -Fq \
   'README link target resolves outside repository: ../outside.md' \
   "$test_root/stderr"
 
+printf '[Guide][guide]\n\n[guide]: missing-guide.md\n' > "$repo/README.md"
+
+if bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected a broken reference-style link target to fail\n' >&2
+  exit 1
+fi
+
+grep -Fq \
+  'README link target does not exist: missing-guide.md' \
+  "$test_root/stderr"
+
 printf 'Validated README link checker regressions.\n'

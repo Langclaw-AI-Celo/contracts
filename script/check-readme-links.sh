@@ -6,9 +6,18 @@ repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 readme="$repo_root/README.md"
 invalid_count=0
 
+readme_link_tokens() {
+  grep -oE '\]\([^)]+\)' "$readme" || true
+  sed -nE \
+    's/^[[:space:]]{0,3}\[[^]]+\]:[[:space:]]*(<[^>]+>|[^[:space:]]+).*/](\1)/p' \
+    "$readme"
+}
+
 while IFS= read -r markdown_link; do
   target="${markdown_link#](}"
   target="${target%)}"
+  target="${target#<}"
+  target="${target%>}"
 
   case "$target" in
     http://*|https://*|mailto:*|'#'*) continue ;;
@@ -31,7 +40,7 @@ while IFS= read -r markdown_link; do
       ((invalid_count += 1))
       ;;
   esac
-done < <(grep -oE '\]\([^)]+\)' "$readme" || true)
+done < <(readme_link_tokens)
 
 if ((invalid_count > 0)); then
   printf 'README link check failed with %d invalid target(s).\n' "$invalid_count" >&2
