@@ -4,7 +4,7 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 readme="$repo_root/README.md"
-missing_count=0
+invalid_count=0
 
 while IFS= read -r markdown_link; do
   target="${markdown_link#](}"
@@ -19,12 +19,22 @@ while IFS= read -r markdown_link; do
 
   if [[ ! -e "$repo_root/$target" ]]; then
     printf 'README link target does not exist: %s\n' "$target" >&2
-    ((missing_count += 1))
+    ((invalid_count += 1))
+    continue
   fi
+
+  resolved_target="$(realpath "$repo_root/$target")"
+  case "$resolved_target" in
+    "$repo_root"|"$repo_root"/*) ;;
+    *)
+      printf 'README link target resolves outside repository: %s\n' "$target" >&2
+      ((invalid_count += 1))
+      ;;
+  esac
 done < <(grep -oE '\]\([^)]+\)' "$readme" || true)
 
-if ((missing_count > 0)); then
-  printf 'README link check failed with %d missing target(s).\n' "$missing_count" >&2
+if ((invalid_count > 0)); then
+  printf 'README link check failed with %d invalid target(s).\n' "$invalid_count" >&2
   exit 1
 fi
 
