@@ -38,4 +38,23 @@ grep -Fq \
   'README link target does not exist: missing-guide.md' \
   "$test_root/stderr"
 
+printf '%s\n' \
+  '```markdown' \
+  '[Example](missing-example.md)' \
+  '[Guide][guide]' \
+  '[guide]: missing-fenced-guide.md' \
+  '```' \
+  '~~~~markdown' \
+  '[Tilde example](missing-tilde-example.md)' \
+  '~~~' \
+  '[Still fenced](missing-after-short-close.md)' \
+  '~~~~' \
+  > "$repo/README.md"
+
+if ! bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected links inside fenced code blocks to be ignored\n' >&2
+  cat "$test_root/stderr" >&2
+  exit 1
+fi
+
 printf 'Validated README link checker regressions.\n'
