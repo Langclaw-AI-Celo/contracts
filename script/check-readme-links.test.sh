@@ -39,6 +39,28 @@ grep -Fq \
   "$test_root/stderr"
 
 printf '%s\n' \
+  '# Query links' \
+  '[Current guide](README.md?plain=1#query-links)' \
+  > "$repo/README.md"
+
+if ! bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected a relative link query and fragment to be excluded from its local path\n' >&2
+  cat "$test_root/stderr" >&2
+  exit 1
+fi
+
+printf '[Missing](missing-query.md?plain=1#section)\n' > "$repo/README.md"
+
+if bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected a missing relative link with a query to fail\n' >&2
+  exit 1
+fi
+
+grep -Fq \
+  'README link target does not exist: missing-query.md?plain=1#section' \
+  "$test_root/stderr"
+
+printf '%s\n' \
   '```markdown' \
   '[Example](missing-example.md)' \
   '[Guide][guide]' \

@@ -171,16 +171,17 @@ while IFS= read -r markdown_link; do
     http://*|https://*|mailto:*|'#'*) continue ;;
   esac
 
-  target="${target%%#*}"
-  [[ -n "$target" ]] || continue
+  link_path="${target%%\?*}"
+  link_path="${link_path%%#*}"
+  [[ -n "$link_path" ]] || continue
 
-  if [[ ! -e "$repo_root/$target" ]]; then
+  if [[ ! -e "$repo_root/$link_path" ]]; then
     printf 'README link target does not exist: %s\n' "$target" >&2
     ((invalid_count += 1))
     continue
   fi
 
-  resolved_target="$(realpath "$repo_root/$target")"
+  resolved_target="$(realpath "$repo_root/$link_path")"
   case "$resolved_target" in
     "$repo_root"|"$repo_root"/*) ;;
     *)
