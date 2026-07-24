@@ -171,6 +171,7 @@ while IFS= read -r markdown_link; do
     [Hh][Tt][Tt][Pp]://* | \
       [Hh][Tt][Tt][Pp][Ss]://* | \
       [Mm][Aa][Ii][Ll][Tt][Oo]:* | \
+      //* | \
       '#'*)
       continue
       ;;
