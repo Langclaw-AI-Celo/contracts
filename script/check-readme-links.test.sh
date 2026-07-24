@@ -57,4 +57,27 @@ if ! bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_roo
   exit 1
 fi
 
+printf '%s\n' \
+  '# Titled links' \
+  '[Bare destination](README.md "Current guide")' \
+  '[Angle-wrapped destination](<README.md> "Current guide")' \
+  > "$repo/README.md"
+
+if ! bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected inline link titles to be excluded from local targets\n' >&2
+  cat "$test_root/stderr" >&2
+  exit 1
+fi
+
+printf '[Missing](missing-guide.md "Missing guide")\n' > "$repo/README.md"
+
+if bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected a titled link with a missing destination to fail\n' >&2
+  exit 1
+fi
+
+grep -Fq \
+  'README link target does not exist: missing-guide.md' \
+  "$test_root/stderr"
+
 printf 'Validated README link checker regressions.\n'
