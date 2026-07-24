@@ -72,6 +72,14 @@ if ! bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_roo
   exit 1
 fi
 
+printf '[Protocol-relative site](//example.com/guide)\n' > "$repo/README.md"
+
+if ! bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected a protocol-relative external link to be ignored\n' >&2
+  cat "$test_root/stderr" >&2
+  exit 1
+fi
+
 printf '%s\n' \
   '```markdown' \
   '[Example](missing-example.md)' \
