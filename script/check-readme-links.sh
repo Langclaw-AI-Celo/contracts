@@ -51,12 +51,92 @@ readme_without_fenced_code() {
   ' "$readme"
 }
 
+mask_inline_code_spans() {
+  awk '
+    function backtick_run_length(value, start, run_count) {
+      run_count = 0
+      while (substr(value, start + run_count, 1) == "`") {
+        run_count += 1
+      }
+      return run_count
+    }
+
+    function opening_is_escaped(value, start, slash_count, cursor) {
+      slash_count = 0
+      cursor = start - 1
+      while (cursor > 0 && substr(value, cursor, 1) == "\\") {
+        slash_count += 1
+        cursor -= 1
+      }
+      return slash_count % 2 == 1
+    }
+
+    function has_matching_delimiter(value, start, delimiter_length, cursor, run_length) {
+      cursor = start + delimiter_length
+      while (cursor <= length(value)) {
+        if (substr(value, cursor, 1) != "`") {
+          cursor += 1
+          continue
+        }
+
+        run_length = backtick_run_length(value, cursor)
+        if (run_length == delimiter_length) {
+          return 1
+        }
+        cursor += run_length
+      }
+      return 0
+    }
+
+    {
+      contents = contents $0 ORS
+    }
+
+    END {
+      output = ""
+      in_code = 0
+      delimiter_length = 0
+      cursor = 1
+
+      while (cursor <= length(contents)) {
+        character = substr(contents, cursor, 1)
+        if (character != "`") {
+          output = output (in_code && character != "\n" ? " " : character)
+          cursor += 1
+          continue
+        }
+
+        run_length = backtick_run_length(contents, cursor)
+        if (!in_code) {
+          if (!opening_is_escaped(contents, cursor) &&
+              has_matching_delimiter(contents, cursor, run_length)) {
+            in_code = 1
+            delimiter_length = run_length
+            output = output sprintf("%*s", run_length, "")
+          } else {
+            output = output substr(contents, cursor, run_length)
+          }
+        } else {
+          output = output sprintf("%*s", run_length, "")
+          if (run_length == delimiter_length) {
+            in_code = 0
+            delimiter_length = 0
+          }
+        }
+        cursor += run_length
+      }
+
+      printf "%s", output
+    }
+  '
+}
+
 visible_readme="$(mktemp)"
 cleanup() {
   rm -f -- "$visible_readme"
 }
 trap cleanup EXIT
-readme_without_fenced_code > "$visible_readme"
+readme_without_fenced_code | mask_inline_code_spans > "$visible_readme"
 
 readme_link_tokens() {
   while IFS= read -r markdown_link; do

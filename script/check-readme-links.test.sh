@@ -80,4 +80,37 @@ grep -Fq \
   'README link target does not exist: missing-guide.md' \
   "$test_root/stderr"
 
+printf 'Use `%s` when documenting the checker.\n' \
+  '[Example](missing-inline-example.md)' \
+  > "$repo/README.md"
+
+if ! bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected links inside inline code spans to be ignored\n' >&2
+  cat "$test_root/stderr" >&2
+  exit 1
+fi
+
+printf 'Use ``%s`` when the example contains `%s`.\n' \
+  '[Example](missing-double-inline.md)' \
+  'backticks' \
+  > "$repo/README.md"
+
+if ! bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected matching multi-backtick code spans to be ignored\n' >&2
+  cat "$test_root/stderr" >&2
+  exit 1
+fi
+
+printf 'Unmatched ` marker keeps [Missing](missing-visible.md) visible.\n' \
+  > "$repo/README.md"
+
+if bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected a visible link after an unmatched backtick to fail\n' >&2
+  exit 1
+fi
+
+grep -Fq \
+  'README link target does not exist: missing-visible.md' \
+  "$test_root/stderr"
+
 printf 'Validated README link checker regressions.\n'
