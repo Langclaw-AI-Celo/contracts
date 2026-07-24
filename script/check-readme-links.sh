@@ -59,7 +59,23 @@ trap cleanup EXIT
 readme_without_fenced_code > "$visible_readme"
 
 readme_link_tokens() {
-  grep -oE '\]\([^)]+\)' "$visible_readme" || true
+  while IFS= read -r markdown_link; do
+    target="${markdown_link#](}"
+    target="${target%)}"
+
+    case "$target" in
+      \<*)
+        target="${target#<}"
+        target="${target%%>*}"
+        ;;
+      *)
+        target="${target%%[[:space:]]*}"
+        ;;
+    esac
+
+    printf '](%s)\n' "$target"
+  done < <(grep -oE '\]\([^)]+\)' "$visible_readme" || true)
+
   sed -nE \
     's/^[[:space:]]{0,3}\[[^]]+\]:[[:space:]]*(<[^>]+>|[^[:space:]]+).*/](\1)/p' \
     "$visible_readme"
