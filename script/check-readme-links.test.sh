@@ -61,6 +61,18 @@ grep -Fq \
   "$test_root/stderr"
 
 printf '%s\n' \
+  '[Secure site](HTTPS://example.com/guide)' \
+  '[Mixed-case site](HtTpS://example.com/reference)' \
+  '[Email](MAILTO:security@example.com)' \
+  > "$repo/README.md"
+
+if ! bash "$repo/script/check-readme-links.sh" >"$test_root/stdout" 2>"$test_root/stderr"; then
+  printf 'expected external URI schemes to be matched case-insensitively\n' >&2
+  cat "$test_root/stderr" >&2
+  exit 1
+fi
+
+printf '%s\n' \
   '```markdown' \
   '[Example](missing-example.md)' \
   '[Guide][guide]' \
